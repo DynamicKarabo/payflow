@@ -57,25 +57,24 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
     private readonly IPaymentRepository _paymentRepository;
     private readonly IPaymentGatewayAdapter _gatewayAdapter;
     private readonly IIdempotencyService _idempotencyService;
-    private readonly ITenantContextProvider _tenantContextProvider;
+    private readonly ITenantContext _tenantContext;
 
     public CreatePaymentCommandHandler(
         IPaymentRepository paymentRepository,
         IPaymentGatewayAdapter gatewayAdapter,
         IIdempotencyService idempotencyService,
-        ITenantContextProvider tenantContextProvider)
+        ITenantContext tenantContext)
     {
         _paymentRepository = paymentRepository;
         _gatewayAdapter = gatewayAdapter;
         _idempotencyService = idempotencyService;
-        _tenantContextProvider = tenantContextProvider;
+        _tenantContext = tenantContext;
     }
 
     public async Task<PaymentResponse> Handle(CreatePaymentCommand request, CancellationToken ct)
     {
-        var tenantContext = _tenantContextProvider.GetTenantContext();
-        var tenantId = tenantContext.TenantId;
-        var mode = tenantContext.Mode;
+        var tenantId = _tenantContext.TenantId;
+        var mode = _tenantContext.Mode;
 
         var currency = Currency.FromCode(request.Currency);
         var amount = new Money(request.Amount, currency);
@@ -149,18 +148,6 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
 
         return PaymentResponse.FromPayment(payment);
     }
-}
-
-public interface ITenantContextProvider
-{
-    TenantContext GetTenantContext();
-}
-
-public class TenantContext
-{
-    public TenantId TenantId { get; set; }
-    public PaymentMode Mode { get; set; }
-    public bool IsLive => Mode == PaymentMode.Live;
 }
 
 public class PaymentInFlightException : DomainException

@@ -1,11 +1,7 @@
-using PayFlow.Domain.Enums;
-using PayFlow.Domain.ValueObjects;
+using PayFlow.Application.Interfaces;
 
 namespace PayFlow.Infrastructure.MultiTenancy;
 
-public interface ITenantContext
+public interface ITenantContext : PayFlow.Application.Interfaces.ITenantContext
 {
-    TenantId TenantId { get; }
-    PaymentMode Mode { get; }
-    bool IsLive => Mode == PaymentMode.Live;
 }
