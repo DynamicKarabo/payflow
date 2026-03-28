@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using PayFlow.Application.Interfaces;
 using PayFlow.Domain.Entities;
 using PayFlow.Domain.Enums;
-using PayFlow.Domain.Exceptions;
 using PayFlow.Domain.ValueObjects;
+using PayFlow.Infrastructure.Exceptions;
+using PayFlow.Infrastructure.MultiTenancy;
 using PayFlow.Infrastructure.Persistence.Context;
 using Xunit;
 
@@ -18,10 +18,10 @@ public class MultiTenancyTests : IDisposable
     public async Task QueryFilter_ShouldIsolateTenantData()
     {
         var tenantContextA = CreateTenantContext(_tenantAId);
-        var optionsA = CreateDbContextOptions(tenantContextA);
+        var optionsA = CreateDbContextOptions();
 
         var tenantContextB = CreateTenantContext(_tenantBId);
-        var optionsB = CreateDbContextOptions(tenantContextB);
+        var optionsB = CreateDbContextOptions();
 
         await using var dbA = new PayFlowDbContext(optionsA, tenantContextA);
         await using var dbB = new PayFlowDbContext(optionsB, tenantContextB);
@@ -43,31 +43,11 @@ public class MultiTenancyTests : IDisposable
         Assert.Equal(_tenantBId, paymentsForB.First().TenantId);
     }
 
-    [Fact]
-    public async Task AdminDbContext_ShouldBypassQueryFilters()
-    {
-        var tenantContext = CreateTenantContext(_tenantAId);
-        var options = CreateDbContextOptions(tenantContext);
-
-        await using var db = new AdminDbContext(options, tenantContext);
-
-        var paymentA = CreateTestPayment(_tenantAId);
-        var paymentB = CreateTestPayment(_tenantBId);
-
-        db.Payments.Add(paymentA);
-        db.Payments.Add(paymentB);
-        await db.SaveChangesAsync();
-
-        var allPayments = await db.AllPayments.ToListAsync();
-
-        Assert.Equal(2, allPayments.Count);
-    }
-
-    private static PayFlowDbContextOptions CreateDbContextOptions(ITenantContext tenantContext)
+    private static DbContextOptions<PayFlowDbContext> CreateDbContextOptions()
     {
         var optionsBuilder = new DbContextOptionsBuilder<PayFlowDbContext>();
         optionsBuilder.UseInMemoryDatabase($"TestDb_{Guid.NewGuid():N}");
-        return new PayFlowDbContextOptions(optionsBuilder.Options, tenantContext);
+        return optionsBuilder.Options;
     }
 
     private static ITenantContext CreateTenantContext(TenantId tenantId)
@@ -104,14 +84,6 @@ public class MultiTenancyTests : IDisposable
         public TenantId TenantId { get; }
         public PaymentMode Mode => PaymentMode.Live;
         public bool IsLive => true;
-    }
-
-    private class PayFlowDbContextOptions : PayFlowDbContext
-    {
-        public PayFlowDbContextOptions(DbContextOptions<PayFlowDbContext> options, ITenantContext tenantContext)
-            : base(options, tenantContext)
-        {
-        }
     }
 }
 

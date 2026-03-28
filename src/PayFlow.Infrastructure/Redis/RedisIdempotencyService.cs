@@ -31,10 +31,11 @@ public class RedisIdempotencyService : IIdempotencyService
         CancellationToken ct = default)
     {
         var redisKey = $"{_keyPrefix}{tenantId.Value}:{key.Value}";
-        var db = _redis.GetDatabase();
 
         try
         {
+            var db = _redis.GetDatabase();
+
             var claimed = await db.StringSetAsync(
                 redisKey,
                 ProcessingSentinel,
