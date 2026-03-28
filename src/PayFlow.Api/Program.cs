@@ -1,14 +1,19 @@
 using FluentValidation;
+using Hangfire;
+using Hangfire.SqlServer;
 using MediatR;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using PayFlow.Api.Configuration;
 using PayFlow.Api.Endpoints;
 using PayFlow.Api.Middleware;
 using PayFlow.Application.Behaviors;
 using PayFlow.Application.Commands;
 using PayFlow.Application.Interfaces;
+using PayFlow.Domain.Enums;
 using PayFlow.Domain.ValueObjects;
-using PayFlow.Infrastructure.MultiTenancy;
 using PayFlow.Infrastructure.Persistence.Context;
 using PayFlow.Infrastructure.Redis;
 using PayFlow.Infrastructure.ServiceBus;
@@ -19,7 +24,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantContextService, TenantContextServiceImpl>();
-builder.Services.AddScoped<ITenantContext>(sp =>
+builder.Services.AddScoped<PayFlow.Application.Interfaces.ITenantContext>(sp =>
 {
     var service = sp.GetRequiredService<ITenantContextService>();
     var ctx = service.GetCurrentContext();
@@ -76,10 +81,7 @@ app.UseApiKeyAuthentication();
 
 app.MapPaymentsEndpoints();
 
-app.MapHangfireDashboard("/admin/hangfire", new DashboardOptions
-{
-    Authorization = new[] { new LocalRequestsOnlyAuthorizationFilter() }
-});
+app.MapHangfireDashboard("/admin/hangfire");
 
 app.MapGet("/health/ready", async (HttpContext context) =>
 {
@@ -100,7 +102,7 @@ app.MapGet("/health/live", () => Results.Ok(new { status = "alive" }));
 
 app.Run();
 
-public class TenantContextWrapper : ITenantContext
+public class TenantContextWrapper : PayFlow.Application.Interfaces.ITenantContext
 {
     private readonly TenantContextData? _context;
 

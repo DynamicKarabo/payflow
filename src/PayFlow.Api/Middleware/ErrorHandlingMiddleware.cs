@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
 using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
+using PayFlow.Application.Commands;
 using PayFlow.Domain.Exceptions;
 
 namespace PayFlow.Api.Middleware;

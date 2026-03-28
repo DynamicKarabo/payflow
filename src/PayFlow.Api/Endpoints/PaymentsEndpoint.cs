@@ -45,13 +45,7 @@ public static class PaymentsEndpoint
             request.Amount,
             request.Currency,
             request.CustomerId,
-            new PaymentMethodRequest(
-                request.PaymentMethod.Type,
-                request.PaymentMethod.Token,
-                request.PaymentMethod.Last4,
-                request.PaymentMethod.Brand,
-                request.PaymentMethod.ExpiryMonth,
-                request.PaymentMethod.ExpiryYear),
+            request.PaymentMethod,
             request.AutoCapture,
             metadata);
 
@@ -60,12 +54,12 @@ public static class PaymentsEndpoint
         return Results.Created($"/v1/payments/{result.Id}", result);
     }
 
-    private static async Task<IResult> GetPayment(
+    private static Task<IResult> GetPayment(
         string id,
         IMediator mediator,
         CancellationToken ct)
     {
-        return Results.Ok(new { id, status = "placeholder" });
+        return Task.FromResult(Results.Ok(new { id, status = "placeholder" }));
     }
 }
 
@@ -76,11 +70,3 @@ public sealed record CreatePaymentRequest(
     PaymentMethodRequest PaymentMethod,
     bool AutoCapture,
     Dictionary<string, string>? Metadata);
-
-public sealed record PaymentMethodRequest(
-    string Type,
-    string? Token,
-    string? Last4,
-    string? Brand,
-    string? ExpiryMonth,
-    string? ExpiryYear);

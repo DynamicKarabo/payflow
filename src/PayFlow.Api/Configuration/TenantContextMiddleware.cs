@@ -1,4 +1,6 @@
 using PayFlow.Application.Interfaces;
+using PayFlow.Domain.Enums;
+using PayFlow.Domain.ValueObjects;
 
 namespace PayFlow.Api.Configuration;
 
