@@ -1,73 +1,137 @@
-# React + TypeScript + Vite
+# PayFlow Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React + TypeScript frontend for the PayFlow payment processing platform.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 18** with TypeScript
+- **Vite** - Build tool and dev server
+- **Tailwind CSS v4** - Utility-first CSS framework
+- **React Router v6** - Client-side routing
+- **Lucide React** - Icon library
 
-## React Compiler
+## Project Structure
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+frontend/
+├── src/
+│   ├── api/
+│   │   └── client.ts           # API client for all endpoints
+│   ├── components/
+│   │   └── Layout.tsx          # Main layout with navigation
+│   ├── contexts/
+│   │   └── AuthContext.tsx     # Authentication context
+│   ├── pages/
+│   │   ├── LoginPage.tsx       # API key login
+│   │   ├── DashboardPage.tsx   # Overview dashboard
+│   │   ├── ApiKeysPage.tsx     # API key management
+│   │   ├── PaymentsPage.tsx    # Payment list & creation
+│   │   ├── PaymentDetailsPage.tsx # Payment details & refunds
+│   │   ├── WebhooksPage.tsx    # Webhook configuration
+│   │   └── SettlementsPage.tsx # Settlement batches
+│   ├── types/
+│   │   └── index.ts            # TypeScript type definitions
+│   ├── App.tsx                 # Main app with routing
+│   └── index.css               # Global styles with Tailwind
+├── index.html
+├── package.json
+├── postcss.config.js
+├── tsconfig.json
+└── vite.config.ts
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Pages
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Login Page (`/login`)
+- API key input with validation
+- Supports `pk_test_` and `pk_live_` prefixes
+- Persistent session via localStorage
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Dashboard (`/`)
+- Overview statistics
+- Quick action cards
+- Recent activity feed
+- Mode indicator (Test/Live)
+
+### API Keys (`/api-keys`)
+- List API keys filtered by mode
+- Generate new key modal
+- One-time key display with security warning
+- Revoke key functionality
+
+### Payments (`/payments`)
+- Payment list with status indicators
+- Create payment modal with idempotency
+- Real-time status tracking
+- RFC 9457 error handling
+
+### Payment Details (`/payments/:id`)
+- Full payment information
+- Capture, Cancel, and Refund actions
+- Refund modal with amount validation
+
+### Webhooks (`/webhooks`)
+- Webhook endpoint list
+- Create endpoint with HTTPS validation
+- Event type selection
+- Rotate secret functionality
+
+### Settlements (`/settlements`)
+- Settlement batch table
+- Date range filtering
+- Detailed breakdown
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+
+### Installation
+```bash
+cd frontend
+npm install
 ```
+
+### Development
+```bash
+npm run dev
+```
+Opens at http://localhost:5173
+
+### Production Build
+```bash
+npm run build
+```
+Output in `dist/` directory
+
+## Environment Variables
+
+Create a `.env` file:
+```
+VITE_API_URL=http://localhost:5062
+```
+
+## API Integration
+
+The frontend connects to the PayFlow backend API. All requests include:
+- Bearer token authentication (API key)
+- Automatic idempotency key generation for payments
+- RFC 9457 error handling
+
+## Features
+
+- ✅ Test/Live mode toggle
+- ✅ API key generation with one-time display
+- ✅ HTTPS enforcement for webhook URLs
+- ✅ Idempotency key handling
+- ✅ Payment state machine visualization
+- ✅ Partial refund support
+- ✅ Webhook secret rotation
+- ✅ Settlement batch filtering
+- ✅ Responsive design
+- ✅ Error handling with problem details
+- ✅ Loading states and spinners
+
+## License
+MIT License

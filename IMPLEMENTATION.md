@@ -3,134 +3,113 @@
 ## Project Overview
 PayFlow is a multi-tenant payment processing platform built with .NET 9, following Clean Architecture principles. This document details what has been implemented and the current state of the project.
 
-## Architecture
-The solution follows a layered architecture with four main projects:
+## Project Structure
+The solution consists of a backend API and a React frontend:
 
 ```
 PayFlow/
-├── PayFlow.Domain/           # Domain entities, value objects, events, enums
-├── PayFlow.Application/      # Application services, commands, queries, interfaces
-├── PayFlow.Infrastructure/   # External concerns (EF Core, Redis, Hangfire, etc.)
-└── PayFlow.Api/             # API endpoints, middleware, configuration
+├── src/
+│   ├── PayFlow.Domain/           # Domain entities, value objects, events, enums
+│   ├── PayFlow.Application/      # Application services, commands, queries, interfaces
+│   ├── PayFlow.Infrastructure/   # External concerns (EF Core, Redis, Hangfire, etc.)
+│   └── PayFlow.Api/              # API endpoints, middleware, configuration
+├── tests/
+│   ├── PayFlow.Domain.Tests/     # Domain unit tests (19 tests)
+│   └── PayFlow.Integration.Tests/# Integration tests (26 tests)
+└── frontend/                     # React frontend application
+    ├── src/
+    │   ├── api/                  # API client
+    │   ├── components/           # Reusable components
+    │   ├── contexts/             # React contexts (Auth)
+    │   ├── pages/                # Page components
+    │   └── types/                # TypeScript types
+    └── dist/                     # Production build
 ```
 
-## What Was Implemented
+---
 
-### 1. **PaymentRepository** (`src/PayFlow.Infrastructure/Persistence/Repositories/PaymentRepository.cs`)
-- Implements `IPaymentRepository` interface
-- Provides methods for `GetByIdAsync`, `GetByIdempotencyKeyAsync`, `AddAsync`, `UpdateAsync`
-- Includes related Refunds with `Include()`
+## Backend Implementation
 
-### 2. **Dependency Injection** (`src/PayFlow.Api/Program.cs`)
-- Registered `AdminDbContext` for background jobs
-- Registered `PaymentRepository` as `IPaymentRepository`
-- Registered `RealPaymentGatewayAdapter` as `IPaymentGatewayAdapter`
-- Registered `WebhookEndpointRepository` as `IWebhookEndpointRepository`
-- Registered `SettlementBatchRepository` as `ISettlementBatchRepository`
+### Domain Layer (`src/PayFlow.Domain/`)
 
-### 3. **GetPayment Query** (`src/PayFlow.Application/Queries/GetPaymentQuery.cs`)
-- New query handler to retrieve payment by ID
-- Validates GUID format and returns `PaymentResponse`
+#### Entities
+- **Payment** - Core payment entity with state machine (Created → Authorised → Captured → Settled)
+- **Refund** - Refund entity with status tracking
+- **Tenant** - Multi-tenant support
+- **ApiKey** - API key management
+- **WebhookEndpoint** - Webhook configuration (HTTPS required)
+- **WebhookDelivery** - Webhook delivery tracking
+- **SettlementBatch** - Daily settlement aggregation
 
-### 4. **CapturePaymentCommand** (`src/PayFlow.Application/Commands/CapturePaymentCommand.cs`)
-- Captures an authorised payment
-- Calls payment gateway to process capture
-- Updates payment status to `Captured`
+#### Value Objects
+- `PaymentId`, `TenantId`, `RefundId`, `CustomerId`, `ApiKeyId`, `SettlementBatchId`, `WebhookDeliveryId`, `WebhookEndpointId`
+- `Money` - Amount with currency
+- `Currency` - Currency code validation
+- `IdempotencyKey` - Idempotency key wrapper
+- `PaymentMethod` - Card/bank payment details
 
-### 5. **RefundPaymentCommand** (`src/PayFlow.Application/Commands/RefundPaymentCommand.cs`)
-- Processes refunds for settled payments
-- Validates refund amount against available balance
-- Calls payment gateway to process refund
+#### Domain Events
+- `PaymentCreated`
+- `PaymentAuthorised`
+- `PaymentCaptured`
+- `PaymentSettled`
+- `PaymentFailed`
+- `PaymentCancelled`
+- `RefundSucceeded`
+- `RefundFailed`
 
-### 6. **CancelPaymentCommand** (`src/PayFlow.Application/Commands/CancelPaymentCommand.cs`)
-- Cancels a payment that hasn't been captured or settled
-- Updates payment status to `Cancelled`
+### Application Layer (`src/PayFlow.Application/`)
 
-### 7. **FailPaymentCommand** (`src/PayFlow.Application/Commands/FailPaymentCommand.cs`)
-- Marks a payment as failed with a reason
-- Can be used for manual failure marking
+#### Commands
+| Command | Description |
+|---------|-------------|
+| `CreatePaymentCommand` | Create a new payment with idempotency |
+| `CapturePaymentCommand` | Capture an authorised payment |
+| `RefundPaymentCommand` | Process a refund |
+| `CancelPaymentCommand` | Cancel a payment |
+| `FailPaymentCommand` | Mark payment as failed |
+| `CreateWebhookEndpointCommand` | Register webhook endpoint |
+| `UpdateWebhookEndpointCommand` | Update webhook configuration |
+| `DeleteWebhookEndpointCommand` | Remove webhook endpoint |
+| `RotateWebhookSecretCommand` | Rotate HMAC signing secret |
 
-### 8. **Webhook Registration System**
+#### Queries
+| Query | Description |
+|-------|-------------|
+| `GetPaymentQuery` | Retrieve payment by ID |
+| `GetWebhookEndpointsQuery` | List webhook endpoints |
+| `GetSettlementsQuery` | List settlements with date filter |
 
-#### Domain Entity (`src/PayFlow.Domain/Entities/WebhookEndpoint.cs`)
-- `WebhookEndpoint` entity with status management (Active/Disabled)
-- URL validation (HTTPS required)
-- Event type subscriptions (comma-separated list)
-- Secret rotation support
+#### Interfaces
+- `IPaymentRepository` - Payment data access
+- `IWebhookEndpointRepository` - Webhook endpoint data access
+- `ISettlementBatchRepository` - Settlement batch data access
+- `IPaymentGatewayAdapter` - Payment gateway integration
+- `IIdempotencyService` - Idempotency key management
+- `IWebhookSigner` - HMAC webhook signing
+- `ITenantContext` - Multi-tenant context
 
-#### Repository Interface (`src/PayFlow.Application/Interfaces/IWebhookEndpointRepository.cs`)
-- CRUD operations for webhook endpoints
-- Query by tenant and event type
+### Infrastructure Layer (`src/PayFlow.Infrastructure/`)
 
-#### Repository Implementation (`src/PayFlow.Infrastructure/Persistence/Repositories/WebhookEndpointRepository.cs`)
-- EF Core implementation with tenant isolation
-- Active endpoint filtering by event type
+#### Repositories
+- `PaymentRepository` - EF Core implementation
+- `WebhookEndpointRepository` - EF Core implementation
+- `SettlementBatchRepository` - EF Core implementation
 
-#### Commands (`src/PayFlow.Application/Commands/Webhooks/`)
-- `CreateWebhookEndpointCommand` - Register new webhook endpoint
-- `UpdateWebhookEndpointCommand` - Update URL or event subscriptions
-- `DeleteWebhookEndpointCommand` - Remove webhook endpoint
-- `RotateWebhookSecretCommand` - Rotate HMAC signing secret
+#### Services
+- `RedisIdempotencyService` - Redis-based idempotency (24h TTL)
+- `HmacWebhookSigner` - HMAC-SHA256 webhook signing
+- `RealPaymentGatewayAdapter` - Payment gateway adapter with Polly resilience
 
-#### DTOs (`src/PayFlow.Application/DTOs/WebhookEndpointResponse.cs`)
-- `WebhookEndpointResponse` - API response format
-- `WebhookDeliveryResponse` - Delivery tracking response
+#### Background Jobs
+- `SettlementBatchJob` - Nightly settlement aggregation (00:30 UTC)
+- `WebhookDeliveryJob` - Webhook delivery processing
 
-#### API Endpoints (`src/PayFlow.Api/Endpoints/WebhookEndpointsEndpoint.cs`)
-- `POST /v1/webhook-endpoints` - Create endpoint
-- `GET /v1/webhook-endpoints` - List endpoints
-- `PUT /v1/webhook-endpoints/{id}` - Update endpoint
-- `DELETE /v1/webhook-endpoints/{id}` - Delete endpoint
-- `POST /v1/webhook-endpoints/{id}/rotate-secret` - Rotate secret
+### API Layer (`src/PayFlow.Api/`)
 
-### 9. **Settlement Management**
+#### Endpoints
 
-#### Repository Interface (`src/PayFlow.Application/Interfaces/ISettlementBatchRepository.cs`)
-- Query settlements by tenant with date range filtering
-
-#### Repository Implementation (`src/PayFlow.Infrastructure/Persistence/Repositories/SettlementBatchRepository.cs`)
-- EF Core implementation with date range support
-
-#### Query (`src/PayFlow.Application/Queries/GetSettlementsQuery.cs`)
-- `GetSettlementsQuery` with optional date filtering
-
-#### DTOs (`src/PayFlow.Application/DTOs/SettlementBatchResponse.cs`)
-- `SettlementBatchResponse` - Settlement batch details
-
-#### API Endpoints (`src/PayFlow.Api/Endpoints/SettlementsEndpoint.cs`)
-- `GET /v1/settlements` - List settlements with date filtering
-- `GET /v1/settlements/{id}` - Get settlement details (placeholder)
-
-### 10. **API Endpoints** (`src/PayFlow.Api/Endpoints/PaymentsEndpoint.cs`)
-- `GET /v1/payments/{id}` - Get payment details
-- `POST /v1/payments/{id}/capture` - Capture payment
-- `POST /v1/payments/{id}/refund` - Process refund
-- `POST /v1/payments/{id}/cancel` - Cancel payment
-- `POST /v1/payments/{id}/fail` - Mark payment as failed
-
-### 11. **Database Configuration**
-- Added `WebhookEndpoints` DbSet to `PayFlowDbContext` and `AdminDbContext`
-- Configured entity mappings for `WebhookEndpoint`
-- Added query filters for multi-tenant isolation
-
-### 12. **API Integration Tests** (`tests/PayFlow.Integration.Tests/PaymentsEndpointTests.cs`)
-- Basic health endpoint tests
-- Framework for API testing with `WebApplicationFactory`
-
-## Bug Fixes
-- Fixed duplicate using directive in `ApiKeyAuthenticationMiddleware.cs`
-- Fixed unused variable warning in `InfrastructureCleanupTests.cs`
-- Made `Refund.MarkSucceeded()` and `Refund.MarkFailed()` public
-- Fixed `WebhookEndpointNotFoundException` references
-
-## Current Test Status
-- **Domain Tests**: 19 passing ✅
-- **Integration Tests**: 26 passing ✅
-- **Total**: 45 tests, 0 failures ✅
-
-## API Endpoints Summary
-
-### Payments
+**Payments**
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/v1/payments` | Create payment with idempotency |
@@ -140,7 +119,7 @@ PayFlow/
 | POST | `/v1/payments/{id}/cancel` | Cancel payment |
 | POST | `/v1/payments/{id}/fail` | Mark payment as failed |
 
-### Webhooks
+**Webhooks**
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/v1/webhook-endpoints` | Register webhook endpoint |
@@ -149,43 +128,238 @@ PayFlow/
 | DELETE | `/v1/webhook-endpoints/{id}` | Delete webhook endpoint |
 | POST | `/v1/webhook-endpoints/{id}/rotate-secret` | Rotate signing secret |
 
-### Settlements
+**Settlements**
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/v1/settlements` | List settlements with date filter |
 | GET | `/v1/settlements/{id}` | Get settlement details |
 
-### Health
+**Health**
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health/ready` | Database connectivity check |
 | GET | `/health/live` | Basic liveness probe |
 | GET | `/admin/hangfire` | Hangfire dashboard |
 
-## Technology Stack
-- **Runtime**: .NET 9.0
-- **API**: ASP.NET Core Minimal APIs
-- **ORM**: Entity Framework Core 9.0 (SQL Server)
-- **Cache**: StackExchange.Redis
-- **Messaging**: Azure Service Bus
-- **Background Jobs**: Hangfire
-- **Resilience**: Polly
-- **Validation**: FluentValidation
-- **Testing**: xUnit, Moq, Microsoft.AspNetCore.Mvc.Testing
+#### Middleware
+- `ApiKeyAuthenticationMiddleware` - API key validation
+- `ErrorHandlingMiddleware` - RFC 9457 error responses
 
-## Project Status
-The PayFlow platform is now **approximately 90-95% complete** with all critical business operations implemented:
+---
+
+## Frontend Implementation (`frontend/`)
+
+### Technology Stack
+- **React 18** with TypeScript
+- **Vite** - Build tool and dev server
+- **Tailwind CSS v4** - Utility-first CSS
+- **React Router v6** - Client-side routing
+- **Lucide React** - Icon library
+
+### Pages
+
+#### 1. Login Page (`/login`)
+- API key input with validation
+- Supports `pk_test_` and `pk_live_` prefixes
+- Persistent session via localStorage
+
+#### 2. Dashboard (`/`)
+- Overview statistics (Total Payments, Amount, Success Rate, Pending Settlements)
+- Quick action cards
+- Recent activity feed
+- Mode indicator (Test/Live)
+
+#### 3. API Keys (`/api-keys`)
+- List API keys filtered by mode
+- Generate new key modal
+- One-time key display with security warning
+- Copy to clipboard
+- Revoke key functionality
+
+#### 4. Payments (`/payments`)
+- Payment list with status indicators
+- Create payment modal:
+  - Amount and currency input
+  - Customer ID
+  - Card token (optional)
+  - Auto-capture toggle
+- Real-time status tracking (Created → Authorised → Captured)
+- RFC 9457 error handling
+
+#### 5. Payment Details (`/payments/:id`)
+- Full payment information
+- Action buttons based on status:
+  - Capture (for authorised payments)
+  - Cancel (for created/authorised payments)
+  - Refund (for settled payments)
+- Refund modal with amount validation
+
+#### 6. Webhooks (`/webhooks`)
+- Webhook endpoint list
+- Create endpoint modal with HTTPS validation
+- Event type selection (9 event types)
+- One-time secret display
+- Rotate secret functionality
+- Delete endpoint
+
+#### 7. Settlements (`/settlements`)
+- Settlement batch table
+- Date range filtering
+- Detailed breakdown (Gross, Fees, Net)
+- Payment count per batch
+- Settlement details modal
+
+### API Client (`src/api/client.ts`)
+- Full API client for all endpoints
+- Automatic idempotency key generation
+- RFC 9457 error handling
+- Token persistence
+- Mode-aware API key management
+
+### Authentication (`src/contexts/AuthContext.tsx`)
+- API key management
+- Test/Live mode switching
+- Suspension status tracking
+- Protected route handling
+
+### Features Implemented
+- ✅ Test/Live mode toggle in navigation
+- ✅ API key generation with one-time display
+- ✅ HTTPS enforcement for webhook URLs
+- ✅ Idempotency key handling for payments
+- ✅ Payment state machine visualization
+- ✅ Partial refund support with validation
+- ✅ Webhook secret rotation
+- ✅ Settlement batch filtering by date
+- ✅ Responsive design with Tailwind CSS
+- ✅ Error handling with problem details
+- ✅ Loading states and spinners
+
+---
+
+## Test Status
+
+### Backend Tests
+- **Domain Tests**: 19 passing ✅
+- **Integration Tests**: 26 passing ✅
+- **Total**: 45 tests, 0 failures ✅
+
+### Frontend
+- **TypeScript**: Type-checked ✅
+- **Build**: Successful ✅
+
+---
+
+## Technology Stack
+
+### Backend
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| .NET | 9.0 | Runtime |
+| ASP.NET Core | 9.0 | API framework |
+| Entity Framework Core | 9.0 | ORM (SQL Server) |
+| StackExchange.Redis | Latest | Idempotency cache |
+| Azure Service Bus | Latest | Message broker |
+| Hangfire | Latest | Background jobs |
+| Polly | Latest | Resilience/retry |
+| FluentValidation | Latest | Request validation |
+| MediatR | Latest | CQRS mediator |
+| xUnit | Latest | Testing |
+| Moq | Latest | Mocking |
+
+### Frontend
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| React | 18 | UI framework |
+| TypeScript | 5.x | Type safety |
+| Vite | 8.x | Build tool |
+| Tailwind CSS | 4.x | Styling |
+| React Router | 6.x | Routing |
+| Lucide React | Latest | Icons |
+
+---
+
+## Environment Requirements
+
+### Backend
+- .NET 9.0 SDK
+- SQL Server 2022 (or compatible)
+- Redis (for idempotency)
+- Azure Service Bus (for production messaging)
+
+### Frontend
+- Node.js 18+
+- npm or yarn
+
+---
+
+## Quick Start
+
+### Backend
+```bash
+# Build solution
+dotnet build
+
+# Run tests
+dotnet test
+
+# Run API
+dotnet run --project src/PayFlow.Api/PayFlow.Api.csproj
+```
+
+### Frontend
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Development server
+npm run dev
+
+# Production build
+npm run build
+```
+
+### Environment Variables
+
+**Backend** (`appsettings.json`)
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=PayFlow;...",
+    "Redis": "localhost:6379"
+  },
+  "ServiceBus": {
+    "ConnectionString": "...",
+    "WebhookQueueName": "webhooks"
+  }
+}
+```
+
+**Frontend** (`.env`)
+```
+VITE_API_URL=http://localhost:5062
+```
+
+---
+
+## Project Status: ~95% Complete
 
 ### ✅ Completed
-- Payment lifecycle (Create, Authorize, Capture, Settle, Cancel, Fail, Refund)
-- Multi-tenant isolation with EF Core query filters
-- Idempotency with Redis SET NX
-- Webhook registration and management
-- Settlement query endpoints
-- Background job infrastructure (Hangfire)
-- HMAC webhook signing
-- Domain events architecture
-- Comprehensive test coverage (45 tests)
+- [x] Payment lifecycle (Create, Authorize, Capture, Settle, Cancel, Fail, Refund)
+- [x] Multi-tenant isolation with EF Core query filters
+- [x] Idempotency with Redis SET NX
+- [x] Webhook registration and management
+- [x] Settlement query endpoints
+- [x] Background job infrastructure (Hangfire)
+- [x] HMAC webhook signing
+- [x] Domain events architecture
+- [x] Comprehensive test coverage (45 tests)
+- [x] React frontend with all pages
+- [x] API client with full endpoint coverage
+- [x] Authentication and mode switching
+- [x] Responsive UI with Tailwind CSS
 
 ### ⚠️ Remaining Work
 1. **Webhook Dispatcher**: Service Bus consumer to create webhook deliveries from domain events
@@ -195,26 +369,11 @@ The PayFlow platform is now **approximately 90-95% complete** with all critical 
 5. **Settlement Batch Job Updates**: Use tenant-specific fee configuration
 6. **Swagger/OpenAPI Documentation**: API documentation generation
 7. **Rate Limiting**: API rate limiting for production
-8. **CORS Configuration**: Cross-origin resource sharing setup
+8. **CORS Configuration**: Cross-origin resource sharing setup for frontend
+9. **Frontend Unit Tests**: Add Vitest for component testing
+10. **Production Deployment**: Docker/Kubernetes configuration
 
-## Quick Start
-
-```bash
-# Restore and build
-dotnet build
-
-# Run tests
-dotnet test
-
-# Run the API
-dotnet run --project src/PayFlow.Api/PayFlow.Api.csproj
-```
-
-## Environment Requirements
-- .NET 9.0 SDK
-- SQL Server 2022 (or compatible)
-- Redis (for idempotency)
-- Azure Service Bus (for production messaging)
+---
 
 ## License
 MIT License
