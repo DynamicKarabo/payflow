@@ -7,3 +7,4 @@ public readonly record struct CustomerId(Guid Value);
 public readonly record struct ApiKeyId(Guid Value);
 public readonly record struct SettlementBatchId(Guid Value);
 public readonly record struct WebhookDeliveryId(Guid Value);
+public readonly record struct WebhookEndpointId(Guid Value);

@@ -11,7 +11,6 @@ public class InfrastructureCleanupTests
     [Fact]
     public void MigrationRetryPolicy_ShouldBeConfigured()
     {
-        var retryCount = 0;
         var policy = Policy
             .Handle<Exception>()
             .WaitAndRetryAsync(
@@ -19,7 +18,7 @@ public class InfrastructureCleanupTests
                 sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
                 onRetry: (exception, timeSpan, retryCount, context) =>
                 {
-                    retryCount++;
+                    // Retry logic would go here
                 });
 
         Assert.NotNull(policy);

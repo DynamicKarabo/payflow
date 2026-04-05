@@ -14,7 +14,9 @@ using PayFlow.Application.Commands;
 using PayFlow.Application.Interfaces;
 using PayFlow.Domain.Enums;
 using PayFlow.Domain.ValueObjects;
+using PayFlow.Infrastructure.Gateways;
 using PayFlow.Infrastructure.Persistence.Context;
+using PayFlow.Infrastructure.Persistence.Repositories;
 using PayFlow.Infrastructure.Redis;
 using PayFlow.Infrastructure.ServiceBus;
 using PayFlow.Infrastructure.Signing;
@@ -37,6 +39,12 @@ builder.Services.AddDbContextFactory<PayFlowDbContext>(options =>
     options.UseSqlServer(connectionString);
 });
 
+builder.Services.AddDbContext<AdminDbContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    options.UseSqlServer(connectionString);
+});
+
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var configuration = ConfigurationOptions.Parse(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379");
@@ -46,6 +54,10 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 
 builder.Services.AddScoped<IIdempotencyService, RedisIdempotencyService>();
 builder.Services.AddScoped<IWebhookSigner, HmacWebhookSigner>();
+builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+builder.Services.AddScoped<IPaymentGatewayAdapter, RealPaymentGatewayAdapter>();
+builder.Services.AddScoped<IWebhookEndpointRepository, WebhookEndpointRepository>();
+builder.Services.AddScoped<ISettlementBatchRepository, SettlementBatchRepository>();
 
 builder.Services.AddMediatR(cfg =>
 {
@@ -80,6 +92,8 @@ app.UseErrorHandling();
 app.UseApiKeyAuthentication();
 
 app.MapPaymentsEndpoints();
+app.MapWebhookEndpoints();
+app.MapSettlementsEndpoints();
 
 app.MapHangfireDashboard("/admin/hangfire");
 
@@ -115,3 +129,5 @@ public class TenantContextWrapper : PayFlow.Application.Interfaces.ITenantContex
     public PaymentMode Mode => _context?.Mode ?? PaymentMode.Test;
     public bool IsLive => Mode == PaymentMode.Live;
 }
+
+public partial class Program { }

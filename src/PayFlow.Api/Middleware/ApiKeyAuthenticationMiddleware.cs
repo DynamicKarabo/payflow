@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using PayFlow.Api.Configuration;
 using PayFlow.Domain.Entities;
-using PayFlow.Domain.Entities;
 using PayFlow.Domain.Enums;
 using PayFlow.Domain.ValueObjects;
 using PayFlow.Infrastructure.Persistence.Context;

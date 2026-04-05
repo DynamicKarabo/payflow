@@ -1,6 +1,7 @@
 using MediatR;
 using PayFlow.Application.Commands;
 using PayFlow.Application.DTOs;
+using PayFlow.Application.Queries;
 
 namespace PayFlow.Api.Endpoints;
 
@@ -16,6 +17,22 @@ public static class PaymentsEndpoint
 
         group.MapGet("/{id}", GetPayment)
             .WithName("GetPayment")
+            .WithTags("Payments");
+
+        group.MapPost("/{id}/capture", CapturePayment)
+            .WithName("CapturePayment")
+            .WithTags("Payments");
+
+        group.MapPost("/{id}/refund", RefundPayment)
+            .WithName("RefundPayment")
+            .WithTags("Payments");
+
+        group.MapPost("/{id}/cancel", CancelPayment)
+            .WithName("CancelPayment")
+            .WithTags("Payments");
+
+        group.MapPost("/{id}/fail", FailPayment)
+            .WithName("FailPayment")
             .WithTags("Payments");
     }
 
@@ -54,12 +71,56 @@ public static class PaymentsEndpoint
         return Results.Created($"/v1/payments/{result.Id}", result);
     }
 
-    private static Task<IResult> GetPayment(
+    private static async Task<IResult> GetPayment(
         string id,
         IMediator mediator,
         CancellationToken ct)
     {
-        return Task.FromResult(Results.Ok(new { id, status = "placeholder" }));
+        var query = new GetPaymentQuery(id);
+        var result = await mediator.Send(query, ct);
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> CapturePayment(
+        string id,
+        IMediator mediator,
+        CancellationToken ct)
+    {
+        var command = new CapturePaymentCommand(id);
+        var result = await mediator.Send(command, ct);
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> RefundPayment(
+        string id,
+        RefundPaymentRequest request,
+        IMediator mediator,
+        CancellationToken ct)
+    {
+        var command = new RefundPaymentCommand(id, request.Amount, request.Currency, request.Reason);
+        var result = await mediator.Send(command, ct);
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> CancelPayment(
+        string id,
+        IMediator mediator,
+        CancellationToken ct)
+    {
+        var command = new CancelPaymentCommand(id);
+        var result = await mediator.Send(command, ct);
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> FailPayment(
+        string id,
+        FailPaymentRequest request,
+        IMediator mediator,
+        CancellationToken ct)
+    {
+        var command = new FailPaymentCommand(id, request.Reason);
+        var result = await mediator.Send(command, ct);
+        return Results.Ok(result);
     }
 }
 
@@ -70,3 +131,10 @@ public sealed record CreatePaymentRequest(
     PaymentMethodRequest PaymentMethod,
     bool AutoCapture,
     Dictionary<string, string>? Metadata);
+
+public sealed record RefundPaymentRequest(
+    decimal Amount,
+    string Currency,
+    string Reason);
+
+public sealed record FailPaymentRequest(string Reason);

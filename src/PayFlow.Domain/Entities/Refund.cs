@@ -44,14 +44,14 @@ public sealed class Refund : Entity
         Reason = reason;
     }
 
-    internal void MarkSucceeded(string gatewayReference)
+    public void MarkSucceeded(string gatewayReference)
     {
         GatewayReference = gatewayReference;
         Status = RefundStatus.Succeeded;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    internal void MarkFailed(string failureReason)
+    public void MarkFailed(string failureReason)
     {
         FailureReason = failureReason;
         Status = RefundStatus.Failed;

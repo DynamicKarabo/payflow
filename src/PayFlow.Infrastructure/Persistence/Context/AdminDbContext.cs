@@ -23,6 +23,7 @@ public class AdminDbContext : DbContext
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<SettlementBatch> SettlementBatches => Set<SettlementBatch>();
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
+    public DbSet<WebhookEndpoint> WebhookEndpoints => Set<WebhookEndpoint>();
 
     public IQueryable<Payment> AllPayments => Set<Payment>().IgnoreQueryFilters();
     public IQueryable<Refund> AllRefunds => Set<Refund>().IgnoreQueryFilters();
@@ -30,6 +31,7 @@ public class AdminDbContext : DbContext
     public IQueryable<ApiKey> AllApiKeys => Set<ApiKey>().IgnoreQueryFilters();
     public IQueryable<SettlementBatch> AllSettlementBatches => Set<SettlementBatch>().IgnoreQueryFilters();
     public IQueryable<WebhookDelivery> AllWebhookDeliveries => Set<WebhookDelivery>().IgnoreQueryFilters();
+    public IQueryable<WebhookEndpoint> AllWebhookEndpoints => Set<WebhookEndpoint>().IgnoreQueryFilters();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +43,7 @@ public class AdminDbContext : DbContext
         ConfigureApiKey(modelBuilder);
         ConfigureSettlementBatch(modelBuilder);
         ConfigureWebhookDelivery(modelBuilder);
+        ConfigureWebhookEndpoint(modelBuilder);
     }
 
     private void ConfigurePayment(ModelBuilder modelBuilder)
@@ -303,6 +306,43 @@ public class AdminDbContext : DbContext
 
             builder.HasIndex(w => new { w.TenantId, w.Status });
             builder.HasIndex(w => w.EventId);
+
+            builder.HasQueryFilter(w => w.TenantId == _tenantContext.TenantId);
+        });
+    }
+
+    private void ConfigureWebhookEndpoint(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<WebhookEndpoint>(builder =>
+        {
+            builder.ToTable("WebhookEndpoints");
+            builder.HasKey(w => w.Id);
+
+            builder.Property(w => w.Id)
+                .HasConversion(id => id.Value, v => new WebhookEndpointId(v));
+
+            builder.Property(w => w.TenantId)
+                .HasConversion(id => id.Value, v => new TenantId(v))
+                .IsRequired();
+
+            builder.Property(w => w.Url)
+                .HasMaxLength(2048)
+                .IsRequired();
+
+            builder.Property(w => w.Secret)
+                .HasMaxLength(512)
+                .IsRequired();
+
+            builder.Property(w => w.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .IsRequired();
+
+            builder.Property(w => w.EventTypes)
+                .HasMaxLength(2000)
+                .IsRequired();
+
+            builder.HasIndex(w => new { w.TenantId, w.Status });
 
             builder.HasQueryFilter(w => w.TenantId == _tenantContext.TenantId);
         });
