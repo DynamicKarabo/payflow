@@ -46,7 +46,7 @@ public sealed class Payment : AggregateRoot
         Money amount, Currency currency, PaymentMode mode, CustomerId customerId,
         PaymentMethodSnapshot paymentMethod)
     {
-        return new Payment(
+        var payment = new Payment(
             new PaymentId(Guid.NewGuid()),
             tenantId,
             idempotencyKey,
@@ -55,6 +55,10 @@ public sealed class Payment : AggregateRoot
             mode,
             customerId,
             paymentMethod);
+
+        payment.RaiseDomainEvent(new PaymentCreated(payment.Id, tenantId, amount, mode));
+
+        return payment;
     }
 
     public Money RefundableAmount

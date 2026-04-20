@@ -8,6 +8,7 @@ import type {
   CreateWebhookEndpointRequest,
   UpdateWebhookEndpointRequest,
   RotateWebhookSecretRequest,
+  DashboardStatsResponse,
   ProblemDetails,
 } from '../types';
 
@@ -185,6 +186,11 @@ class ApiClient {
 
   async getSettlement(id: string): Promise<SettlementBatch> {
     return this.request<SettlementBatch>(`/v1/settlements/${id}`);
+  }
+
+  // Dashboard endpoints
+  async getDashboardStats(): Promise<DashboardStatsResponse> {
+    return this.request<DashboardStatsResponse>('/v1/dashboard/stats');
   }
 
   // Health check

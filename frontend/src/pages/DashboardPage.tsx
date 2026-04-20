@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { apiClient } from '../api/client';
+import type { DashboardStatsResponse } from '../types';
 import {
   CreditCard,
   DollarSign,
@@ -9,16 +11,9 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
-interface DashboardStats {
-  totalPayments: number;
-  totalAmount: number;
-  successRate: number;
-  pendingSettlements: number;
-}
-
 export function DashboardPage() {
   const { mode } = useAuth();
-  const [stats, setStats] = useState<DashboardStats>({
+  const [stats, setStats] = useState<DashboardStatsResponse>({
     totalPayments: 0,
     totalAmount: 0,
     successRate: 0,
@@ -28,28 +23,27 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const data: DashboardStatsResponse = await apiClient.getDashboardStats();
+        setStats({
+          totalPayments: data.totalPayments,
+          totalAmount: data.totalAmount,
+          successRate: data.successRate,
+          pendingSettlements: data.pendingSettlements,
+        });
+      } catch (err) {
+        setError('Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadDashboardData();
   }, []);
-
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // In a real app, we'd fetch actual stats from the API
-      // For now, we'll show placeholder data
-      setStats({
-        totalPayments: 0,
-        totalAmount: 0,
-        successRate: 0,
-        pendingSettlements: 0,
-      });
-    } catch (err) {
-      setError('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const quickActions = [
     {

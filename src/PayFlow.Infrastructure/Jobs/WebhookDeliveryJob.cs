@@ -47,7 +47,20 @@ public class WebhookDeliveryJob
             return;
         }
 
-        var (headers, body) = _signer.Sign(delivery.Payload, "tenant_secret_placeholder");
+        // Get the webhook endpoint to retrieve the secret
+        var endpoint = await _dbContext.AllWebhookEndpoints
+            .FirstOrDefaultAsync(e => e.TenantId == delivery.TenantId && e.Url == delivery.EndpointUrl, ct);
+
+        if (endpoint == null)
+        {
+            _logger.LogError("Webhook endpoint not found for delivery {Id} (tenant {TenantId}, url {Url}). Marking as Dead.",
+                deliveryId, delivery.TenantId, delivery.EndpointUrl);
+            delivery.MarkDead();
+            await _dbContext.SaveChangesAsync(ct);
+            return;
+        }
+
+        var (headers, body) = _signer.Sign(delivery.Payload, endpoint.Secret);
 
         using var client = _httpClientFactory.CreateClient("WebhookClient");
         client.Timeout = TimeSpan.FromSeconds(10);

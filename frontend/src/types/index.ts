@@ -94,3 +94,10 @@ export interface ProblemDetails {
   detail?: string;
   errors?: Record<string, string[]>;
 }
+
+export interface DashboardStatsResponse {
+  totalPayments: number;
+  totalAmount: number;
+  successRate: number;
+  pendingSettlements: number;
+}
