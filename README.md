@@ -109,10 +109,21 @@ stateDiagram-v2
 - **Webhook Delivery**: Exponential backoff (30s → 5m → 30m → 2h → 5h → 24h)
 - **Settlement Batch**: Nightly at 00:30 UTC with Redis distributed locking
 
+### 🔔 Webhook Dispatcher (NEW)
+- Domain events automatically create WebhookDelivery records
+- In-process event publisher routes events to matching webhook endpoints
+- Hangfire schedules HTTP delivery with retry logic
+
+### 📊 Dashboard Stats (NEW)
+- `GET /v1/dashboard/stats` — tenant-scoped payment aggregates
+- Returns: total payments, total amount, success rate, pending settlements
+
 ### 🔒 Security
 - HMAC-SHA256 webhook signatures with timestamp validation (300s tolerance)
 - HTTPS enforcement for webhook endpoints
 - No sensitive data (PAN/CVV) in payloads
+- Per-IP rate limiting (100 requests/minute)
+- CORS with configurable allowed origins
 
 ## 🛠️ Technology Stack
 
@@ -225,14 +236,20 @@ Authorization: Bearer pk_live_xxxxx
 ## ✅ Tests
 
 ```bash
+# Backend
 dotnet test
-# Passed!  - Failed: 0, Passed: 45, Skipped: 0
+# Domain: 19 passed | Integration: 26 passed
+
+# Frontend
+cd frontend && npm test
+# 34 tests across API client, AuthContext, LoginPage, DashboardPage
 ```
 
 ### Test Coverage
 - **Domain Tests**: Payment state machine, refund logic, events
 - **Integration Tests**: Multi-tenancy isolation, Redis idempotency, webhook signing
 - **Security Tests**: HMAC verification, HTTPS enforcement, sensitive data scrubbing
+- **Frontend Tests**: API client, auth context, page components
 
 ## 📄 License
 

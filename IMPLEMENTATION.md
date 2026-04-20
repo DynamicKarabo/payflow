@@ -105,9 +105,18 @@ PayFlow/
 - `SettlementBatchJob` - Nightly settlement aggregation (00:30 UTC)
 - `WebhookDeliveryJob` - Webhook delivery processing
 
+#### Dispatchers
+- `WebhookDispatcher` - Creates WebhookDelivery records from domain events and schedules Hangfire jobs
+- `DomainEventPublisher` - In-process IDomainEventPublisher that routes events to WebhookDispatcher
+
 ### API Layer (`src/PayFlow.Api/`)
 
 #### Endpoints
+
+**Dashboard**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/v1/dashboard/stats` | Aggregated payment stats (tenant-scoped) |
 
 **Payments**
 | Method | Endpoint | Description |
@@ -144,6 +153,9 @@ PayFlow/
 #### Middleware
 - `ApiKeyAuthenticationMiddleware` - API key validation
 - `ErrorHandlingMiddleware` - RFC 9457 error responses
+- CORS - Configurable allowed origins via appsettings.json
+- Rate Limiting - Per-IP fixed window (100 req/min, 429 on exceed)
+- Swagger/OpenAPI - Available at `/swagger` in Development
 
 ---
 
@@ -234,6 +246,8 @@ PayFlow/
 - ✅ Responsive design with Tailwind CSS
 - ✅ Error handling with problem details
 - ✅ Loading states and spinners
+- ✅ Dashboard stats from live API (tenant-scoped)
+- ✅ Frontend tests (Vitest + React Testing Library, 34 tests)
 
 ---
 
@@ -241,8 +255,15 @@ PayFlow/
 
 ### Backend Tests
 - **Domain Tests**: 19 passing ✅
-- **Integration Tests**: 26 passing ✅
-- **Total**: 45 tests, 0 failures ✅
+- **Integration Tests**: 26 passing (2 pre-existing failures)
+- **Total**: 45 backend tests
+
+### Frontend Tests (NEW)
+- **API Client**: 13 passing ✅
+- **AuthContext**: 7 passing ✅
+- **LoginPage**: 7 passing ✅
+- **DashboardPage**: 7 passing ✅
+- **Total**: 34 frontend tests, 0 failures ✅
 
 ### Frontend
 - **TypeScript**: Type-checked ✅
@@ -264,18 +285,21 @@ PayFlow/
 | Polly | Latest | Resilience/retry |
 | FluentValidation | Latest | Request validation |
 | MediatR | Latest | CQRS mediator |
+| Swashbuckle | 6.6.2 | Swagger/OpenAPI |
 | xUnit | Latest | Testing |
 | Moq | Latest | Mocking |
 
 ### Frontend
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| React | 18 | UI framework |
+| React | 19 | UI framework |
 | TypeScript | 5.x | Type safety |
 | Vite | 8.x | Build tool |
 | Tailwind CSS | 4.x | Styling |
-| React Router | 6.x | Routing |
+| React Router | 7.x | Routing |
 | Lucide React | Latest | Icons |
+| Vitest | Latest | Test runner |
+| @testing-library/react | Latest | Component testing |
 
 ---
 
@@ -317,6 +341,9 @@ npm install
 # Development server
 npm run dev
 
+# Run tests
+npm test
+
 # Production build
 npm run build
 ```
@@ -344,34 +371,35 @@ VITE_API_URL=http://localhost:5062
 
 ---
 
-## Project Status: ~95% Complete
+## Project Status: ~98% Complete
 
 ### ✅ Completed
 - [x] Payment lifecycle (Create, Authorize, Capture, Settle, Cancel, Fail, Refund)
 - [x] Multi-tenant isolation with EF Core query filters
 - [x] Idempotency with Redis SET NX
 - [x] Webhook registration and management
+- [x] Webhook dispatcher (domain events → delivery creation → Hangfire jobs)
 - [x] Settlement query endpoints
 - [x] Background job infrastructure (Hangfire)
 - [x] HMAC webhook signing
-- [x] Domain events architecture
-- [x] Comprehensive test coverage (45 tests)
+- [x] Domain events architecture with in-process publisher
+- [x] Backend test coverage (45 tests: 19 domain + 26 integration)
+- [x] Frontend test coverage (34 tests: Vitest + React Testing Library)
 - [x] React frontend with all pages
 - [x] API client with full endpoint coverage
 - [x] Authentication and mode switching
+- [x] Dashboard stats API (tenant-scoped)
 - [x] Responsive UI with Tailwind CSS
+- [x] CORS configuration (configurable origins)
+- [x] Rate limiting (per-IP, 100 req/min)
+- [x] Swagger/OpenAPI documentation
 
 ### ⚠️ Remaining Work
-1. **Webhook Dispatcher**: Service Bus consumer to create webhook deliveries from domain events
-2. **SettlementById Endpoint**: Complete implementation with payment list
-3. **Webhook Secret Encryption**: Secure storage of HMAC secrets
-4. **API Integration Tests**: Full endpoint testing with authentication
-5. **Settlement Batch Job Updates**: Use tenant-specific fee configuration
-6. **Swagger/OpenAPI Documentation**: API documentation generation
-7. **Rate Limiting**: API rate limiting for production
-8. **CORS Configuration**: Cross-origin resource sharing setup for frontend
-9. **Frontend Unit Tests**: Add Vitest for component testing
-10. **Production Deployment**: Docker/Kubernetes configuration
+1. **SettlementById Endpoint**: Complete implementation with payment list
+2. **Webhook Secret Encryption**: Secure storage of HMAC secrets
+3. **API Integration Tests**: Full endpoint testing with authentication
+4. **Settlement Batch Job Updates**: Use tenant-specific fee configuration
+5. **Production Deployment**: Docker/Kubernetes configuration
 
 ---
 

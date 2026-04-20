@@ -23,6 +23,8 @@ The backend follows Domain-Driven Design (DDD) principles and is structured into
 ### 🔁 Reliability Features
 *   **Idempotency**: A Redis-backed service ensures that duplicate requests (identified by `Idempotency-Key`) are processed exactly once.
 *   **Polly Resilience**: The payment gateway adapter includes retry policies with jittered backoff and circuit breakers to handle intermittent external failures.
+*   **Rate Limiting**: Per-IP fixed window rate limiting (100 requests/minute) protects against abuse.
+*   **CORS**: Configurable cross-origin resource sharing for frontend integration.
 
 ---
 
@@ -36,8 +38,10 @@ The frontend is a modern merchant portal designed for high-signal financial mana
     *   **ApiClient**: A custom fetch wrapper that automatically handles API key injection, environment switching (Test vs. Live modes), and idempotency key generation.
 *   **Current Capabilities**:
     *   **Payment Lifecycle**: A functional workflow for creating and tracking payments through their lifecycle.
+    *   **Dashboard**: Live stats from API (total payments, amount, success rate, pending settlements).
     *   **Validation**: Real-time display of RFC 7807 Problem Details from the backend.
-    *   **Status**: Currently in a "functional prototype" phase, with core shells for Dashboard, Settlements, and Webhooks ready for full API integration.
+    *   **Testing**: 34 tests with Vitest + React Testing Library.
+    *   **Status**: Fully functional prototype with API integration.
 
 ---
 
