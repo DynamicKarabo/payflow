@@ -53,7 +53,15 @@ python train.py
 
 Metrics achieved during the last run:
 
-METRICS_PLACEHOLDER
+Training metrics (validation):
+
+- AUC: 0.8834392067759004
+- Precision: 0.2293103448275862
+- Recall: 0.7916666666666666
+- F1: 0.35561497326203206
+- Training time (s): 7.598630428314209
+
+The model achieved AUC > 0.85 on a synthetic holdout set.
 
 ## Integration (.NET HttpClient example)
 
