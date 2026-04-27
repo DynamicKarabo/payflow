@@ -193,6 +193,21 @@ export function PaymentsPage() {
                           <span className="text-lg font-medium text-gray-900">
                             {(payment.amount / 100).toFixed(2)} {payment.currency}
                           </span>
+                          {payment.fraudScore !== undefined && payment.fraudScore > 0.8 && (
+                            <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                              High Risk
+                            </span>
+                          )}
+                          {payment.fraudScore !== undefined && payment.fraudScore > 0.5 && payment.fraudScore <= 0.8 && (
+                            <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                              Medium Risk
+                            </span>
+                          )}
+                          {payment.fraudScore !== undefined && payment.fraudScore <= 0.5 && (
+                            <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                              Low Risk
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

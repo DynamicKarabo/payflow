@@ -25,6 +25,7 @@ using PayFlow.Infrastructure.ServiceBus;
 using PayFlow.Infrastructure.Signing;
 using PayFlow.Infrastructure.Dispatchers;
 using StackExchange.Redis;
+using PayFlow.Infrastructure.Fraud;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -76,6 +77,15 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddValidatorsFromAssembly(typeof(CreatePaymentCommand).Assembly);
 
 builder.Services.AddHttpClient("WebhookClient");
+
+// Fraud scoring service
+builder.Services.AddHttpClient<IFraudScoringService, FraudScoringService>(client =>
+{
+    var serviceUrl = builder.Configuration.GetValue<string>("FraudScoring:ServiceUrl") ?? "http://localhost:8000";
+    client.BaseAddress = new Uri(serviceUrl);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+builder.Services.AddScoped<IFraudScoringService>();
 
 // CORS
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()

@@ -13,9 +13,10 @@ public record PaymentResponse(
     string? GatewayReference,
     DateTimeOffset CreatedAt,
     string? FailureReason,
-    Dictionary<string, string>? Metadata)
+    Dictionary<string, string>? Metadata,
+    double? FraudScore)
 {
-    public static PaymentResponse FromPayment(Payment payment) => new(
+    public static PaymentResponse FromPayment(Payment payment, double? fraudScore = null) => new(
         Id: $"pay_{payment.Id.Value:N}",
         Status: payment.Status.ToString().ToLowerInvariant(),
         Amount: payment.Amount.Amount,
@@ -24,7 +25,9 @@ public record PaymentResponse(
         GatewayReference: payment.GatewayReference,
         CreatedAt: payment.CreatedAt,
         FailureReason: payment.FailureReason,
-        Metadata: null);
+        Metadata: null,
+        FraudScore: fraudScore
+    );
 }
 
 public record RefundResponse(

@@ -8,6 +8,7 @@ export interface Payment {
   createdAt: string;
   failureReason?: string;
   metadata?: Record<string, string>;
+  fraudScore?: number;
 }
 
 export interface Refund {
