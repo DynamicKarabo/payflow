@@ -1,256 +1,161 @@
-<div align="center">
+# PayFlow
 
-# PayFlow - Multi-Tenant Payment Processing Platform
+Modern payment processing platform with real-time ML fraud detection. Built with .NET 8, Next.js, and microservices architecture.
 
-![.NET 9.0](https://img.shields.io/badge/.NET-9.0-blue?style=for-the-badge&logo=.net)
-![SQL Server 2022](https://img.shields.io/badge/SQL%20Server-2022-blue?style=for-the-badge&logo=microsoftsqlserver)
-![Redis](https://img.shields.io/badge/Redis-red?style=for-the-badge&logo=redis)
-![Hangfire](https://img.shields.io/badge/Hangfire-black?style=for-the-badge)
+---
 
-A production-ready payment processing platform built with **.NET 9**, featuring strict state machines, multi-tenancy isolation, and event-driven architecture.
+## Tech Stack
 
-</div>
+| Layer | Technology |
+|-------|-----------|
+| **Backend API** | .NET 8, C#, Minimal APIs, MediatR |
+| **Frontend** | Next.js 14, TypeScript, Tailwind CSS |
+| **Database** | PostgreSQL 17 |
+| **Cache** | Redis 7 |
+| **ML Service** | Python FastAPI, XGBoost, pandas |
+| **Orchestration** | Docker Compose |
+| **CI/CD** | GitHub Actions |
+| **Testing** | xUnit, Integration Tests (28 passing) |
 
-## 🏗️ Architecture Overview
+---
 
-```mermaid
-flowchart TB
-    subgraph API_Layer ["API Layer (Minimal APIs)"]
-        Auth_Middleware["Auth Middleware"]
-        Error_Handler["Error Handler (RFC 9457)"]
-        Endpoints["Endpoints
-POST /v1/payments
-GET /v1/payments/{id}"]
-    end
+## MVP: Fraud Detection Microservice
 
-    subgraph App_Layer ["Application Layer (MediatR)"]
-        CreatePaymentCommand["CreatePaymentCommand"]
-        ValidationBehavior["ValidationBehavior"]
-        FluentValidation["FluentValidation"]
-    end
+**Production-grade ML pipeline integrated into payment flow.**
 
-    subgraph Infra_Layer ["Infrastructure Layer"]
-        Redis["Redis
-Idempotency
-Distributed Locks"]
-        Gateway["Payment Gateway
-Polly Resilience
-3 Retries / Circuit Breaker"]
-        ServiceBus["Service Bus
-Domain Events
-Webhooks / SettlementBatch"]
-    end
-
-    subgraph Domain_Layer ["Domain Layer (Clean Architecture)"]
-        PaymentAggregate["Payment Aggregate
-State Machine
-Domain Events"]
-    end
-
-    subgraph Persistence ["Persistence (EF Core + SQL)"]
-        SQL_Server["SQL Server 2022
-Multi-tenant
-Row-version Concurrency"]
-    end
-
-    API_Layer --> App_Layer
-    App_Layer --> Infra_Layer
-    App_Layer --> Domain_Layer
-    Infra_Layer --> Persistence
-    Domain_Layer --> Persistence
+### Architecture
+```
+┌─────────┐    ┌──────────────┐    ┌──────────┐
+│ Payment │───▶│   PayFlow    │───▶│  Redis   │
+│ Gateway │    │   .NET API   │    │  Cache   │
+└─────────┘    └──────┬───────┘    └──────────┘
+                      │
+                      ▼
+            ┌──────────────────┐
+            │  ml-service       │
+            │  (Python FastAPI) │
+            │  XGBoost Model    │
+            └──────────────────┘
 ```
 
-## 🔄 Payment State Machine
+### Model Details
+- **Algorithm:** XGBoost (gradient-boosted trees)
+- **Training data:** IEEE-CIS Fraud Detection dataset (synthetic fintech transactions)
+- **Features:** Transaction amount, card country, time delta, product category, etc.
+- **Output:** `fraud_probability` (0–1), `risk_level` (low/medium/high), `model_version`
+- **Caching:** Redis with 30-day TTL to minimize model inference calls
 
-```mermaid
-stateDiagram-v2
-    [*] --> Created
-    
-    Created --> Authorised : Authorise()
-    Authorised --> Captured : Capture()
-    Captured --> Settled : Settle()
-    
-    Created --> Failed : Fail()
-    Authorised --> Failed : Fail()
-    Authorised --> Cancelled : Cancel()
-    Captured --> Failed : Fail()
-    
-    Settled --> Refunded : Refund()
-    Refunded --> [*]
-    
-    Failed --> [*]
-    Cancelled --> [*]
-    Settled --> [*]
-    
-    note right of Refunded : Child transaction
-```
+### Integration Points
+- Payment creation endpoint scores every transaction automatically
+- Frontend displays real-time risk badges (green/yellow/red)
+- Backend uses fail-open design: ML service returns `0.0` on errors, logs exception
+- Score persisted in `PaymentResponse.FraudScore` for audit trail
 
-## ✨ Key Features
+---
 
-### 🏢 Multi-Tenancy
-- **Shared Database/Schema** approach with EF Core global query filters
-- Tenant isolation enforced at database level via `TenantId`
-- API key authentication with bcrypt-secured secrets
-- Tenant status handling (Active/Suspended/Closed)
+## Local Development
 
-### 🔁 Idempotency
-- Redis-based with 24-hour TTL
-- `SET NX` pattern with processing sentinel
-- Detects in-flight and duplicate requests
-- Graceful fallback if Redis unavailable
+### Prerequisites
+- Docker + Docker Compose
+- .NET 8 SDK (optional, for native builds)
+- Node.js 20+ (optional, for frontend dev)
 
-### 🛡️ Resilience
-- **Gateway Adapter**: Polly resilience pipeline
-  - 3 retries with jittered exponential backoff
-  - Circuit breaker (opens after 50% failure rate)
-  - 10-second timeout per attempt
-
-### ⚙️ Background Jobs (Hangfire)
-- **Webhook Delivery**: Exponential backoff (30s → 5m → 30m → 2h → 5h → 24h)
-- **Settlement Batch**: Nightly at 00:30 UTC with Redis distributed locking
-
-### 🔔 Webhook Dispatcher (NEW)
-- Domain events automatically create WebhookDelivery records
-- In-process event publisher routes events to matching webhook endpoints
-- Hangfire schedules HTTP delivery with retry logic
-
-### 📊 Dashboard Stats (NEW)
-- `GET /v1/dashboard/stats` — tenant-scoped payment aggregates
-- Returns: total payments, total amount, success rate, pending settlements
-
-### 🔒 Security
-- HMAC-SHA256 webhook signatures with timestamp validation (300s tolerance)
-- HTTPS enforcement for webhook endpoints
-- No sensitive data (PAN/CVV) in payloads
-- Per-IP rate limiting (100 requests/minute)
-- CORS with configurable allowed origins
-
-## 🛠️ Technology Stack
-
-| Layer | Technology | Logo |
-|-------|------------|------|
-| Runtime | .NET 9.0 | `󰅲` |
-| API | ASP.NET Core Minimal APIs | `󰅲` |
-| ORM | Entity Framework Core 9.0 (SQL Server) | `󰆼` |
-| Cache | StackExchange.Redis | `󰔟` |
-| Messaging | Azure Service Bus | `󰔟` |
-| Background Jobs | Hangfire | `󰏆` |
-| Resilience | Polly | `󰏆` |
-| Validation | FluentValidation | `󰏆` |
-| Frontend | React 19 + TypeScript + Tailwind | `󰅲` |
-
-## 📁 Project Structure
-
-```
-payflow/
-├── src/
-│   ├── PayFlow.Domain/           # Core domain logic
-│   │   ├── Entities/             # Payment, Refund, Tenant, ApiKey
-│   │   ├── ValueObjects/         # Money, Currency, Ids
-│   │   ├── Events/               # Domain events
-│   │   ├── Enums/                # PaymentStatus, RefundStatus
-│   │   └── Exceptions/           # Domain exceptions
-│   │
-│   ├── PayFlow.Application/      # Application services
-│   │   ├── Commands/             # MediatR commands
-│   │   ├── Interfaces/           # Repository abstractions
-│   │   ├── DTOs/                 # Response DTOs
-│   │   └── Behaviors/            # Pipeline behaviors
-│   │
-│   ├── PayFlow.Infrastructure/   # External concerns
-│   │   ├── Persistence/          # EF Core DbContexts
-│   │   ├── Redis/                # Idempotency service
-│   │   ├── Gateways/             # Payment gateway adapters
-│   │   ├── Jobs/                 # Hangfire jobs
-│   │   ├── ServiceBus/           # Event publishing
-│   │   └── Signing/              # HMAC webhook signing
-│   │
-│   └── PayFlow.Api/              # API entry point
-│       ├── Middleware/           # Auth, Error handling
-│       ├── Endpoints/            # Minimal API routes
-│       └── Configuration/        # DI configuration
-│
-├── frontend/                     # React Frontend
-│   ├── src/
-│   │   ├── api/                  # API clients
-│   │   ├── components/           # Reusable components
-│   │   ├── contexts/             # Auth context
-│   │   ├── hooks/                # Custom hooks
-│   │   ├── pages/                # Page components
-│   │   └── types/                # TypeScript types
-│   └── ...
-│
-└── tests/                        # Unit & Integration Tests
-    ├── PayFlow.Domain.Tests/
-    └── PayFlow.Integration.Tests/
-```
-
-## 🚀 Quick Start
-
+### Quick Start
 ```bash
-# Restore and build
-dotnet build
+# Clone and start everything
+git clone https://github.com/your-username/payflow.git
+cd payflow
+./run-dev.sh
 
-# Run tests
-dotnet test
+# Services start in order:
+# 1. PostgreSQL  (localhost:5432)
+# 2. Redis       (localhost:6379)
+# 3. ML Service  (http://localhost:8000)
+# 4. .NET API    (http://localhost:5000)
+# 5. Frontend    (http://localhost:5173)
 
-# Run the API
-dotnet run --project src/PayFlow.Api/PayFlow.Api.csproj
+# Health checks
+curl http://localhost:8000/health           # ML service
+curl http://localhost:5000/health           # API
 ```
 
-## 📡 API Endpoints
+### Access Points
+| Service | URL | Notes |
+|---------|-----|-------|
+| Frontend | http://localhost:5173 | Next.js dev server |
+| API | http://localhost:5000 | Swagger at /swagger |
+| ML Scoring | http://localhost:8000 | POST /score |
+| PostgreSQL | localhost:5432 | User: `postgres`, Password: `postgres` |
+| Redis | localhost:6379 | No password (local only) |
 
-### Create Payment
+### Running Tests
 ```bash
-POST /v1/payments
-Authorization: Bearer pk_live_xxxxx
-Idempotency-Key: unique-key-123
-
-{
-  "amount": 10000,
-  "currency": "GBP",
-  "customerId": "cus_123",
-  "paymentMethod": {
-    "type": "card",
-    "token": "tok_xxx"
-  },
-  "autoCapture": false
-}
+cd src/PayFlow.Api
+dotnet test --logger "console;verbosity=detailed"
 ```
+**All 28 integration tests pass** (Hangfire & Redis optional during tests).
 
-### Get Payment
+---
+
+## Production Deployment
+
+### Environment Variables
 ```bash
-GET /v1/payments/pay_abc123
-Authorization: Bearer pk_live_xxxxx
+# .NET API (src/PayFlow.Api/Program.cs reads these)
+FraudScoring__ServiceUrl=https://ml-service.yourdomain.com
+Redis__ConnectionString=redis://redis-12345.upstash.io:6379
+ConnectionStrings__PayFlowDbContext=Host=...
+AcceptPaymentCard__WebhookUrl=https://api.yourdomain.com/webhooks/...
+
+# ML Service (ml-service/.env)
+REDIS_URL=redis://...
+MODEL_PATH=/app/model.pkl
 ```
 
-## 🔍 Health Checks
+### Deployment Options
+- **Frontend:** Vercel (single-click) or Railway
+- **API:** Railway (Docker), Azure Container Apps, AWS ECS
+- **ML Service:** Railway (Python service), modal.com (serverless GPUs), GCP Vertex AI
+- **Database:** Supabase, Neon, or self-hosted Postgres
+- **Redis:** Upstash (serverless), Redis Cloud
 
-- **Ready**: `/health/ready` - Checks database connectivity
-- **Live**: `/health/live` - Basic liveness probe
+---
 
-## 📊 Background Jobs Dashboard
+## Key Design Decisions
 
-- **Hangfire Dashboard**: `/admin/hangfire`
+### Fail-Open for ML
+If the ML service is down or returns an error, the API uses `fraudScore: 0.0` and logs the exception — payments still flow.
 
-## ✅ Tests
+### Microservice Isolation
+ML service runs independently (Python) separate from .NET stack. Enables:
+- Independent scaling (GPU inference on separate nodes)
+- Team autonomy (data scientists deploy models without touching .NET)
+- Technology diversity (right tool per job)
 
-```bash
-# Backend
-dotnet test
-# Domain: 19 passed | Integration: 26 passed
+### Docker-First Workflow
+Everything containerized. `docker-compose.yml` defines full stack locally. Production mirrors local setup.
 
-# Frontend
-cd frontend && npm test
-# 34 tests across API client, AuthContext, LoginPage, DashboardPage
-```
+---
 
-### Test Coverage
-- **Domain Tests**: Payment state machine, refund logic, events
-- **Integration Tests**: Multi-tenancy isolation, Redis idempotency, webhook signing
-- **Security Tests**: HMAC verification, HTTPS enforcement, sensitive data scrubbing
-- **Frontend Tests**: API client, auth context, page components
+## Future Roadmap
 
-## 📄 License
+- [ ] Real-time streaming fraud detection (Kafka + Redis Streams)
+- [ ] Model retraining pipeline (scheduled XGBoost retrain on new data)
+- [ ] Explainability dashboard (SHAP values per transaction)
+- [ ] Multi-model ensemble (add TabNet/DeepFM for comparison)
+- [ ] A/B testing layer (canary model rollouts)
+- [ ] Regulatory compliance audit log (GDPR/POPIA)
 
-MIT License
+---
+
+## Credits
+
+Built by Karabo Oliphant — fintech engineer targeting US remote contracts (2026).
+
+**Want to work together?** DM open for ML engineering roles (focus: risk, fraud, payments).
+
+---
+
+## License
+
+MIT. Use as boilerplate for your own payment platform with ML.

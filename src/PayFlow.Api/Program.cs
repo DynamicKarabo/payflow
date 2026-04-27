@@ -136,14 +136,20 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+// Hangfire gate: single source of truth for all Hangfire-related registration
+var hangfireConnStr = builder.Configuration["Hangfire:ConnectionString"];
+var enableHangfire = !string.IsNullOrEmpty(hangfireConnStr) && 
+                    (hangfireConnStr.Contains("Server=", StringComparison.OrdinalIgnoreCase) || 
+                     hangfireConnStr.Contains("Data Source=", StringComparison.OrdinalIgnoreCase));
+Console.WriteLine($"[STARTUP] Hangfire:ConnectionString = '{hangfireConnStr ?? "(null)"}' => enableHangfire={enableHangfire}");
+
 // Hangfire: only register if connection string exists (skip in tests)
-var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");
-if (!string.IsNullOrEmpty(defaultConnection))
+if (enableHangfire)
 {
     builder.Services.AddHangfire(configuration => configuration
         .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
         .UseSimpleAssemblyNameTypeSerializer()
-        .UseSqlServerStorage(defaultConnection, new SqlServerStorageOptions
+        .UseSqlServerStorage(builder.Configuration["Hangfire:ConnectionString"], new SqlServerStorageOptions
         {
             SchemaName = "HangfireSchema",
             CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
@@ -168,6 +174,41 @@ else
 
 var app = builder.Build();
 
+    // Auto-migrate database on startup (development/demo) — non-blocking
+    Task.Run(async () =>
+    {
+        await Task.Delay(5000); // give services a moment
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PayFlowDbContext>();
+        var loggerFactory = scope.ServiceProvider.GetService<ILoggerFactory>();
+        var logger = loggerFactory?.CreateLogger("Startup") ?? 
+                     scope.ServiceProvider.GetService<ILogger<Program>>() ?? 
+                     new LoggerFactory().CreateLogger("Fallback");
+        var maxAttempts = 5;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                logger.LogInformation("Applying DB migrations (attempt {Attempt}/{Max})", attempt, maxAttempts);
+                db.Database.Migrate();
+                logger.LogInformation("Migrations applied successfully");
+                break;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Migration attempt {Attempt} failed", attempt);
+                if (attempt == maxAttempts)
+                {
+                    logger.LogError("All migration attempts failed — database may be unreachable");
+                }
+                else
+                {
+                    await Task.Delay(2000 * attempt); // backoff
+                }
+            }
+        }
+    });
+
 // Swagger (Development only)
 if (app.Environment.IsDevelopment())
 {
@@ -178,7 +219,12 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.UseRateLimiter();
 app.UseErrorHandling();
-app.UseApiKeyAuthentication();
+// Disable API key auth in Development for local demo
+Console.WriteLine($"[STARTUP] Env: {app.Environment.EnvironmentName}, Auth enabled: {!app.Environment.IsDevelopment()}");
+if (!app.Environment.IsDevelopment())
+{
+    app.UseApiKeyAuthentication();
+}
 
 app.MapPaymentsEndpoints();
 app.MapWebhookEndpoints();
@@ -186,8 +232,7 @@ app.MapSettlementsEndpoints();
 app.MapDashboardEndpoints();
 
 // Hangfire dashboard only when configured
-var connStr = app.Configuration.GetConnectionString("DefaultConnection");
-if (!string.IsNullOrEmpty(connStr))
+if (enableHangfire)
 {
     app.MapHangfireDashboard("/admin/hangfire");
 }

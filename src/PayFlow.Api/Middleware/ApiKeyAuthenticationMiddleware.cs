@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Hosting;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using PayFlow.Api.Configuration;
@@ -12,12 +13,17 @@ public class ApiKeyAuthenticationMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ApiKeyAuthenticationMiddleware> _logger;
+    private readonly IWebHostEnvironment _env;
     private static readonly Regex ApiKeyPattern = new(@"^(pk_live_|pk_test_)[a-zA-Z0-9]+$", RegexOptions.Compiled);
 
-    public ApiKeyAuthenticationMiddleware(RequestDelegate next, ILogger<ApiKeyAuthenticationMiddleware> logger)
+    public ApiKeyAuthenticationMiddleware(
+        RequestDelegate next, 
+        ILogger<ApiKeyAuthenticationMiddleware> logger,
+        IWebHostEnvironment env)
     {
         _next = next;
         _logger = logger;
+        _env = env;
     }
 
     public async Task InvokeAsync(HttpContext context, IDbContextFactory<PayFlowDbContext> dbFactory)
@@ -28,6 +34,27 @@ public class ApiKeyAuthenticationMiddleware
         {
             await _next(context);
             return;
+        }
+
+        _logger.LogInformation("Auth middleware: Path={Path}, Env={Env}", path, _env.EnvironmentName);
+        // Development-only API key bypass for local demo/testing
+        if (_env.IsDevelopment())
+        {
+            _logger.LogInformation("Dev bypass check: header present = {HasHeader}, value = {Value}", 
+                context.Request.Headers.ContainsKey("X-Dev-Api-Key"),
+                context.Request.Headers["X-Dev-Api-Key"].FirstOrDefault());
+            var devAuth = context.Request.Headers["X-Dev-Api-Key"].FirstOrDefault();
+            if (devAuth == "dev-bypass-key")
+            {
+                // Set a fake tenant context and continue
+                context.Items["TenantContext"] = new TenantContextData
+                {
+                    TenantId = new TenantId(Guid.Empty), // dev tenant
+                    Mode = PaymentMode.Test
+                };
+                await _next(context);
+                return;
+            }
         }
 
         var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
