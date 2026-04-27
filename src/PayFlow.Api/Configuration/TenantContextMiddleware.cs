@@ -1,6 +1,7 @@
 using PayFlow.Application.Interfaces;
 using PayFlow.Domain.Enums;
 using PayFlow.Domain.ValueObjects;
+using Microsoft.Extensions.Hosting;
 
 namespace PayFlow.Api.Configuration;
 
@@ -40,10 +41,12 @@ public interface ITenantContextService
 public class TenantContextServiceImpl : ITenantContextService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IHostEnvironment _env;
 
-    public TenantContextServiceImpl(IHttpContextAccessor httpContextAccessor)
+    public TenantContextServiceImpl(IHttpContextAccessor httpContextAccessor, IHostEnvironment env)
     {
         _httpContextAccessor = httpContextAccessor;
+        _env = env;
     }
 
     public TenantContextData? GetCurrentContext()
@@ -53,6 +56,18 @@ public class TenantContextServiceImpl : ITenantContextService
         {
             return tc;
         }
+
+        // Development fallback: provide a default tenant context so health checks and
+        // background operations can resolve scoped services without an HTTP request.
+        if (_env.IsDevelopment())
+        {
+            return new TenantContextData
+            {
+                TenantId = new TenantId(Guid.Empty), // dummy tenant
+                Mode = PaymentMode.Test
+            };
+        }
+
         return null;
     }
 

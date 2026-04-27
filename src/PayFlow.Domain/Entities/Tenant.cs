@@ -11,8 +11,8 @@ public sealed class Tenant : AggregateRoot
     public Currency SettlementCurrency { get; private set; }
     public int SettlementCutoffHours { get; private set; }
     public decimal PercentageFee { get; private set; }
-    public Money FixedFeeAmount { get; private set; }
-    public Money DailyLimit { get; private set; }
+    public decimal FixedFeeAmount { get; private set; }
+    public decimal DailyLimit { get; private set; }
 
     private Tenant() { }
 
@@ -24,8 +24,8 @@ public sealed class Tenant : AggregateRoot
         SettlementCurrency = settlementCurrency;
         SettlementCutoffHours = 24;
         PercentageFee = 0.014m;
-        FixedFeeAmount = new Money(0.20m, settlementCurrency);
-        DailyLimit = new Money(50000m, settlementCurrency);
+        FixedFeeAmount = 0.20m;
+        DailyLimit = 50000m;
     }
 
     public void UpdateStatus(TenantStatus status)
@@ -34,14 +34,14 @@ public sealed class Tenant : AggregateRoot
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    public void UpdateFeeConfig(decimal percentageFee, Money fixedFeeAmount)
+    public void UpdateFeeConfig(decimal percentageFee, decimal fixedFeeAmount)
     {
         PercentageFee = percentageFee;
         FixedFeeAmount = fixedFeeAmount;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    public void UpdateDailyLimit(Money dailyLimit)
+    public void UpdateDailyLimit(decimal dailyLimit)
     {
         DailyLimit = dailyLimit;
         UpdatedAt = DateTimeOffset.UtcNow;
@@ -56,6 +56,6 @@ public sealed class Tenant : AggregateRoot
 
     public bool CanProcessPayment(Money amount)
     {
-        return Status == TenantStatus.Active && amount.Amount <= DailyLimit.Amount;
+        return Status == TenantStatus.Active && amount.Amount <= DailyLimit;
     }
 }

@@ -189,9 +189,9 @@ var app = builder.Build();
         {
             try
             {
-                logger.LogInformation("Applying DB migrations (attempt {Attempt}/{Max})", attempt, maxAttempts);
-                db.Database.Migrate();
-                logger.LogInformation("Migrations applied successfully");
+                logger.LogInformation("Ensuring database exists (attempt {Attempt}/{Max})", attempt, maxAttempts);
+                db.Database.EnsureCreated();
+                logger.LogInformation("Database ensured");
                 break;
             }
             catch (Exception ex)
@@ -239,15 +239,15 @@ if (enableHangfire)
 
 app.MapGet("/health/ready", async (HttpContext context) =>
 {
-    var dbFactory = context.RequestServices.GetRequiredService<IDbContextFactory<PayFlowDbContext>>();
     try
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
+        var db = context.RequestServices.GetRequiredService<PayFlowDbContext>();
         await db.Database.CanConnectAsync();
         return Results.Ok(new { status = "healthy" });
     }
-    catch
+    catch (Exception ex)
     {
+        Console.WriteLine($"[HEALTH] Unhealthy: {ex}");
         return Results.Json(new { status = "unhealthy" }, statusCode: 503);
     }
 });
