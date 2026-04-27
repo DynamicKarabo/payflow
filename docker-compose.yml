@@ -5,7 +5,7 @@ services:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: payflow-sql
     environment:
-      SA_PASSWORD: "Payflow123!"
+      SA_PASSWORD: "YourStrong!Passw0rd"
       ACCEPT_EULA: "Y"
       MSSQL_PID: "Express"
     ports:
@@ -67,7 +67,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5000
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=payflow;User Id=sa;Password=Payflow123!;TrustServerCertificate=true
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=payflow;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=true
       - Redis__Configuration=redis:6379
       - FraudScoring__ServiceUrl=http://ml-service:8000
       - PaymentGateway__BaseUrl=http://localhost:5000
