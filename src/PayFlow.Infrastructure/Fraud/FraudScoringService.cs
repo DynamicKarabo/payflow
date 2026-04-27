@@ -3,6 +3,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
+using PayFlow.Application.Fraud;
+
 namespace PayFlow.Infrastructure.Fraud;
 
 public class FraudScoringService : IFraudScoringService

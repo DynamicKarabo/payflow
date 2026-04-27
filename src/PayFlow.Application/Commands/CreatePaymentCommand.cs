@@ -6,7 +6,7 @@ using PayFlow.Domain.Entities;
 using PayFlow.Domain.Enums;
 using PayFlow.Domain.Exceptions;
 using PayFlow.Domain.ValueObjects;
-using PayFlow.Infrastructure.Fraud;
+using PayFlow.Application.Fraud;
 
 namespace PayFlow.Application.Commands;
 

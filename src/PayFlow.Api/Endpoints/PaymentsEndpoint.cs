@@ -2,6 +2,7 @@ using MediatR;
 using PayFlow.Application.Commands;
 using PayFlow.Application.DTOs;
 using PayFlow.Application.Queries;
+using StackExchange.Redis;
 
 namespace PayFlow.Api.Endpoints;
 
@@ -74,11 +75,27 @@ public static class PaymentsEndpoint
     private static async Task<IResult> GetPayment(
         string id,
         IMediator mediator,
+        IConnectionMultiplexer redis,
         CancellationToken ct)
     {
         var query = new GetPaymentQuery(id);
         var result = await mediator.Send(query, ct);
-        return Results.Ok(result);
+
+        // attempt to extract raw guid from id like "pay_{guid}"
+        var rawId = result.Id != null && result.Id.StartsWith("pay_") ? result.Id.Substring(4) : result.Id;
+        double? fraudScore = null;
+        if (!string.IsNullOrEmpty(rawId))
+        {
+            var db = redis.GetDatabase();
+            var scoreValue = await db.StringGetAsync($"fraud:payment:{rawId}");
+            if (scoreValue.HasValue && double.TryParse((string)scoreValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+            {
+                fraudScore = parsed;
+            }
+        }
+
+        var responseWithFraud = result with { FraudScore = fraudScore };
+        return Results.Ok(responseWithFraud);
     }
 
     private static async Task<IResult> CapturePayment(
