@@ -6,6 +6,7 @@ using PayFlow.Domain.Entities;
 using PayFlow.Domain.Enums;
 using PayFlow.Domain.Exceptions;
 using PayFlow.Domain.ValueObjects;
+using PayFlow.Application.Fraud;
 
 namespace PayFlow.Application.Commands;
 
@@ -58,17 +59,20 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
     private readonly IPaymentGatewayAdapter _gatewayAdapter;
     private readonly IIdempotencyService _idempotencyService;
     private readonly ITenantContext _tenantContext;
+    private readonly IFraudScoringService _fraudScoringService;
 
     public CreatePaymentCommandHandler(
         IPaymentRepository paymentRepository,
         IPaymentGatewayAdapter gatewayAdapter,
         IIdempotencyService idempotencyService,
-        ITenantContext tenantContext)
+        ITenantContext tenantContext,
+        IFraudScoringService fraudScoringService)
     {
         _paymentRepository = paymentRepository;
         _gatewayAdapter = gatewayAdapter;
         _idempotencyService = idempotencyService;
         _tenantContext = tenantContext;
+        _fraudScoringService = fraudScoringService;
     }
 
     public async Task<PaymentResponse> Handle(CreatePaymentCommand request, CancellationToken ct)
@@ -140,13 +144,25 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
 
         await _paymentRepository.AddAsync(payment, ct);
 
+        // Compute fraud score (async, fire-and-forget could be considered but we await for simplicity)
+        var txData = new PaymentTransactionData(
+            TransactionId: payment.Id.ToString(),
+            Amount: payment.Amount.Amount,
+            Currency: payment.Currency.Code,
+            Country: "SA", // TODO: derive from tenant/billing address later
+            DeviceId: request.Metadata?.GetValueOrDefault("device_id") ?? "unknown",
+            IpAddress: request.Metadata?.GetValueOrDefault("ip_address") ?? "0.0.0.0",
+            Timestamp: payment.CreatedAt
+        );
+        double fraudScore = await _fraudScoringService.GetFraudScoreAsync(txData, ct);
+
         if (idempotencyResult.RedisKey != null)
         {
-            var response = PaymentResponse.FromPayment(payment);
+            var response = PaymentResponse.FromPayment(payment, fraudScore);
             await _idempotencyService.CommitAsync(idempotencyResult.RedisKey, response, ct);
         }
 
-        return PaymentResponse.FromPayment(payment);
+        return PaymentResponse.FromPayment(payment, fraudScore);
     }
 }
 

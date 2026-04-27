@@ -25,6 +25,7 @@ using PayFlow.Infrastructure.ServiceBus;
 using PayFlow.Infrastructure.Signing;
 using PayFlow.Infrastructure.Dispatchers;
 using StackExchange.Redis;
+using PayFlow.Infrastructure.Fraud;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +37,8 @@ builder.Services.AddScoped<PayFlow.Application.Interfaces.ITenantContext>(sp =>
     var ctx = service.GetCurrentContext();
     return new TenantContextWrapper(ctx);
 });
+builder.Services.AddScoped<PayFlow.Infrastructure.MultiTenancy.ITenantContext>(sp =>
+    (PayFlow.Infrastructure.MultiTenancy.ITenantContext)sp.GetRequiredService<PayFlow.Application.Interfaces.ITenantContext>());
 
 builder.Services.AddDbContextFactory<PayFlowDbContext>(options =>
 {
@@ -59,12 +62,18 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 builder.Services.AddScoped<IIdempotencyService, RedisIdempotencyService>();
 builder.Services.AddScoped<IWebhookSigner, HmacWebhookSigner>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
-builder.Services.AddScoped<IPaymentGatewayAdapter, RealPaymentGatewayAdapter>();
+builder.Services.AddScoped<IPaymentGatewayAdapter>(sp =>
+{
+    var httpClient = sp.GetRequiredService<HttpClient>();
+    var logger = sp.GetRequiredService<ILogger<RealPaymentGatewayAdapter>>();
+    var config = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = config.GetValue<string>("PaymentGateway:BaseUrl") ?? "http://localhost:5000";
+    return new RealPaymentGatewayAdapter(httpClient, logger, baseUrl);
+});
 builder.Services.AddScoped<IWebhookEndpointRepository, WebhookEndpointRepository>();
 builder.Services.AddScoped<ISettlementBatchRepository, SettlementBatchRepository>();
 
-// Register webhook dispatcher and domain event publisher
-builder.Services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
+// Register domain event publisher
 builder.Services.AddScoped<IDomainEventPublisher, DomainEventPublisher>();
 
 builder.Services.AddMediatR(cfg =>
@@ -76,6 +85,14 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddValidatorsFromAssembly(typeof(CreatePaymentCommand).Assembly);
 
 builder.Services.AddHttpClient("WebhookClient");
+
+// Fraud scoring service
+builder.Services.AddHttpClient<PayFlow.Application.Fraud.IFraudScoringService, FraudScoringService>(client =>
+{
+    var serviceUrl = builder.Configuration.GetValue<string>("FraudScoring:ServiceUrl") ?? "http://localhost:8000";
+    client.BaseAddress = new Uri(serviceUrl);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
 
 // CORS
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
@@ -119,22 +136,35 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-builder.Services.AddHangfire(configuration => configuration
-    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection"), new SqlServerStorageOptions
-    {
-        SchemaName = "HangfireSchema",
-        CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
-        UseRecommendedIsolationLevel = true,
-        DisableGlobalLocks = true
-    }));
-
-builder.Services.AddHangfireServer(options =>
+// Hangfire: only register if connection string exists (skip in tests)
+var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");
+if (!string.IsNullOrEmpty(defaultConnection))
 {
-    options.Queues = new[] { "webhook", "refund", "settlement", "default" };
-    options.WorkerCount = Environment.ProcessorCount * 2;
-});
+    builder.Services.AddHangfire(configuration => configuration
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseSqlServerStorage(defaultConnection, new SqlServerStorageOptions
+        {
+            SchemaName = "HangfireSchema",
+            CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+            UseRecommendedIsolationLevel = true,
+            DisableGlobalLocks = true
+        }));
+
+    builder.Services.AddHangfireServer(options =>
+    {
+        options.Queues = new[] { "webhook", "refund", "settlement", "default" };
+        options.WorkerCount = Environment.ProcessorCount * 2;
+    });
+
+    // WebhookDispatcher requires Hangfire — only register in prod
+    builder.Services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
+}
+else
+{
+    // Test environment: no-op webhook dispatcher (Hangfire disabled)
+    builder.Services.AddScoped<IWebhookDispatcher, NoOpWebhookDispatcher>();
+}
 
 var app = builder.Build();
 
@@ -155,7 +185,12 @@ app.MapWebhookEndpoints();
 app.MapSettlementsEndpoints();
 app.MapDashboardEndpoints();
 
-app.MapHangfireDashboard("/admin/hangfire");
+// Hangfire dashboard only when configured
+var connStr = app.Configuration.GetConnectionString("DefaultConnection");
+if (!string.IsNullOrEmpty(connStr))
+{
+    app.MapHangfireDashboard("/admin/hangfire");
+}
 
 app.MapGet("/health/ready", async (HttpContext context) =>
 {
@@ -176,7 +211,7 @@ app.MapGet("/health/live", () => Results.Ok(new { status = "alive" }));
 
 app.Run();
 
-public class TenantContextWrapper : PayFlow.Application.Interfaces.ITenantContext
+public class TenantContextWrapper : PayFlow.Application.Interfaces.ITenantContext, PayFlow.Infrastructure.MultiTenancy.ITenantContext
 {
     private readonly TenantContextData? _context;
 
