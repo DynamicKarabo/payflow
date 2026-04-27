@@ -1,0 +1,3 @@
+# ignore model artifacts
+*.pkl
+metadata.json
