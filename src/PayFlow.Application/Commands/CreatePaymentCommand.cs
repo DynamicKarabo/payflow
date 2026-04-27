@@ -81,7 +81,6 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
         var mode = _tenantContext.Mode;
 
         var currency = Currency.FromCode(request.Currency);
-        var amount = new Money(request.Amount, currency);
         var customerId = new CustomerId(Guid.Parse(request.CustomerId));
         
         var idempotencyKey = new IdempotencyKey(request.Metadata?.GetValueOrDefault("idempotency_key") ?? Guid.NewGuid().ToString());
@@ -114,14 +113,14 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
         var payment = Payment.Create(
             tenantId,
             idempotencyKey,
-            amount,
+            request.Amount,
             currency,
             mode,
             customerId,
             paymentMethod);
 
         var authoriseRequest = new AuthoriseRequest(
-            amount,
+            new Money(request.Amount, currency),
             currency,
             request.PaymentMethod.Token ?? string.Empty,
             customerId);
@@ -147,7 +146,7 @@ public sealed class CreatePaymentCommandHandler : IRequestHandler<CreatePaymentC
         // Compute fraud score (async, fire-and-forget could be considered but we await for simplicity)
         var txData = new PaymentTransactionData(
             TransactionId: payment.Id.ToString(),
-            Amount: payment.Amount.Amount,
+            Amount: payment.Amount,
             Currency: payment.Currency.Code,
             Country: "SA", // TODO: derive from tenant/billing address later
             DeviceId: request.Metadata?.GetValueOrDefault("device_id") ?? "unknown",

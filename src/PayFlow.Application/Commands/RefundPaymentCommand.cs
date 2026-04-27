@@ -68,13 +68,13 @@ public sealed class RefundPaymentCommandHandler : IRequestHandler<RefundPaymentC
         }
 
         var currency = Currency.FromCode(request.Currency);
-        var amount = new Money(request.Amount, currency);
+        var amountMoney = new Money(request.Amount, currency);
 
-        var refund = payment.Refund(amount, request.Reason);
+        var refund = payment.Refund(request.Amount, request.Reason);
 
         var refundResult = await _gatewayAdapter.RefundAsync(
             payment.GatewayReference!,
-            amount,
+            amountMoney,
             ct);
 
         if (refundResult.Succeeded)

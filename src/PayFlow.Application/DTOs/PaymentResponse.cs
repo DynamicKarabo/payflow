@@ -19,7 +19,7 @@ public record PaymentResponse(
     public static PaymentResponse FromPayment(Payment payment, double? fraudScore = null) => new(
         Id: $"pay_{payment.Id.Value:N}",
         Status: payment.Status.ToString().ToLowerInvariant(),
-        Amount: payment.Amount.Amount,
+        Amount: payment.Amount,
         Currency: payment.Currency.Code,
         Mode: payment.Mode.ToString().ToLowerInvariant(),
         GatewayReference: payment.GatewayReference,

@@ -52,7 +52,7 @@ public sealed class CapturePaymentCommandHandler : IRequestHandler<CapturePaymen
 
         var captureResult = await _gatewayAdapter.CaptureAsync(
             payment.GatewayReference!,
-            payment.Amount,
+            new Money(payment.Amount, payment.Currency),
             ct);
 
         if (!captureResult.Succeeded)

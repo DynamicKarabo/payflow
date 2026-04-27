@@ -10,7 +10,7 @@ public sealed class Payment : AggregateRoot
     public PaymentId Id { get; private set; }
     public TenantId TenantId { get; private set; }
     public IdempotencyKey IdempotencyKey { get; private set; }
-    public Money Amount { get; private set; }
+    public decimal Amount { get; private set; }
     public Currency Currency { get; private set; }
     public PaymentStatus Status { get; private set; }
     public PaymentMode Mode { get; private set; }
@@ -25,10 +25,10 @@ public sealed class Payment : AggregateRoot
     private Payment() { }
 
     private Payment(PaymentId id, TenantId tenantId, IdempotencyKey idempotencyKey, 
-        Money amount, Currency currency, PaymentMode mode, CustomerId customerId,
+        decimal amount, Currency currency, PaymentMode mode, CustomerId customerId,
         PaymentMethodSnapshot paymentMethod)
     {
-        if (amount.Amount <= 0)
+        if (amount <= 0)
             throw new ArgumentException("Amount must be positive", nameof(amount));
 
         Id = id;
@@ -43,7 +43,7 @@ public sealed class Payment : AggregateRoot
     }
 
     public static Payment Create(TenantId tenantId, IdempotencyKey idempotencyKey,
-        Money amount, Currency currency, PaymentMode mode, CustomerId customerId,
+        decimal amount, Currency currency, PaymentMode mode, CustomerId customerId,
         PaymentMethodSnapshot paymentMethod)
     {
         var payment = new Payment(
@@ -56,19 +56,19 @@ public sealed class Payment : AggregateRoot
             customerId,
             paymentMethod);
 
-        payment.RaiseDomainEvent(new PaymentCreated(payment.Id, tenantId, amount, mode));
+        payment.RaiseDomainEvent(new PaymentCreated(payment.Id, tenantId, new Money(amount, currency), mode));
 
         return payment;
     }
 
-    public Money RefundableAmount
+    public decimal RefundableAmount
     {
         get
         {
             var refunded = _refunds
                 .Where(r => r.Status != RefundStatus.Failed)
-                .Aggregate(Money.Zero(Currency), (acc, r) => acc.Add(r.Money));
-            return Amount.Subtract(refunded);
+                .Sum(r => r.Amount);
+            return Amount - refunded;
         }
     }
 
@@ -103,7 +103,7 @@ public sealed class Payment : AggregateRoot
         Status = PaymentStatus.Settled;
         UpdatedAt = DateTimeOffset.UtcNow;
 
-        RaiseDomainEvent(new PaymentSettled(Id, TenantId, Amount));
+        RaiseDomainEvent(new PaymentSettled(Id, TenantId, new Money(Amount, Currency)));
     }
 
     public void Fail(string reason)
@@ -129,25 +129,27 @@ public sealed class Payment : AggregateRoot
         RaiseDomainEvent(new PaymentCancelled(Id, TenantId));
     }
 
-    public Refund Refund(Money amount, string reason)
+    public Refund Refund(decimal amount, string reason)
     {
         if (Status != PaymentStatus.Settled)
             throw new InvalidPaymentTransitionException(Status, "Refund");
 
-        if (amount.Amount > RefundableAmount.Amount)
-            throw new InsufficientRefundableAmountException(amount, RefundableAmount);
+        if (amount > RefundableAmount)
+            throw new InsufficientRefundableAmountException(
+                new Money(amount, Currency),
+                new Money(RefundableAmount, Currency));
 
         var refund = new Refund(
             new RefundId(Guid.NewGuid()),
             Id,
             TenantId,
-            amount,
+            new Money(amount, Currency),
             reason);
 
         _refunds.Add(refund);
         UpdatedAt = DateTimeOffset.UtcNow;
 
-        RaiseDomainEvent(new RefundCreated(refund.Id, Id, TenantId, amount));
+        RaiseDomainEvent(new RefundCreated(refund.Id, Id, TenantId, new Money(amount, Currency)));
 
         return refund;
     }

@@ -22,7 +22,7 @@ public static class DashboardEndpoint
         var totalPayments = await db.Payments.LongCountAsync(ct);
 
         var totalAmount = totalPayments > 0
-            ? await db.Payments.SumAsync(p => p.Amount.Amount, ct)
+            ? await db.Payments.SumAsync(p => p.Amount, ct)
             : 0m;
 
         var settledCount = await db.Payments

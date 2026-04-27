@@ -2,26 +2,23 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-# Copy everything first (including tests)
+# Copy everything (repo root as context)
 COPY . .
 
-# Restore dependencies (solution at /src/PayFlow.sln after COPY . .)
-WORKDIR /src
-RUN dotnet restore "PayFlow.sln"
+# Restore dependencies for the API project (NuGet resolves project refs automatically)
+RUN dotnet restore "src/PayFlow.Api/PayFlow.Api.csproj"
 
 # Build
-WORKDIR "/src/src/PayFlow.Api"
-RUN dotnet build -c Release --no-restore
+RUN dotnet build "src/PayFlow.Api/PayFlow.Api.csproj" -c Release --no-restore
 
 # Publish
-RUN dotnet publish -c Release -o /app/publish --no-build
+RUN dotnet publish "src/PayFlow.Api/PayFlow.Api.csproj" -c Release -o /app/publish --no-build
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Expose ports (HTTP 5000, HTTPS 5001)
 EXPOSE 5000
 EXPOSE 5001
 

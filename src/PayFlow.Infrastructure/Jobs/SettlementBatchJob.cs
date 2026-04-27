@@ -89,9 +89,9 @@ public class SettlementBatchJob
 
         var grossAmount = capturedPayments.Aggregate(
             Money.Zero(Currency.GBP),
-            (sum, p) => sum.Add(p.Amount));
+            (sum, p) => sum.Add(new Money(p.Amount, p.Currency)));
 
-        var totalFees = capturedPayments.Sum(p => p.Amount.Amount * 0.014m + 0.20m);
+        var totalFees = capturedPayments.Sum(p => p.Amount * 0.014m + 0.20m);
         var feeAmount = new Money(totalFees, grossAmount.Currency);
         var netAmount = grossAmount.Subtract(feeAmount);
 
