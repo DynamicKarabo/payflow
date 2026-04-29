@@ -237,6 +237,8 @@ if (enableHangfire)
     app.MapHangfireDashboard("/admin/hangfire");
 }
 
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
 app.MapGet("/health/ready", async (HttpContext context) =>
 {
     try
